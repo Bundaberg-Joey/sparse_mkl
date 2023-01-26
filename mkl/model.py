@@ -13,24 +13,66 @@ from mkl.kernel import TanimotoKernel, RbfKernel
 
 
 class SparseGaussianProcess:
+    """Gaussian process capabale of performing sparse manipulations to speed up predictions / posterior samplng on large datasets.
+    """
 
     def __init__(self, model: GaussianProcessRegressor, X_inducing: NDArray[np.int_], jitter: float=1e-6) -> None:
+        """
+        Parameters
+        ----------
+        model : GaussianProcessRegressor
+            Instantiated sklearn.gaussian_process.GaussianProcessRegressor
+            Kernel must accept indices instead of raw features.
+            Also must have a sum kernel of `<Kernel>() + WhiteKernel()`
+            
+        X_inducing : NDArray[np.int_]
+            Indices of MOFs to use for inducing matrix.
+            
+        jitter : float
+            slight noise value to prevent numerical issues.
+        """
         self.model = model
-        self.jitter = float(jitter)
         self.X_inducing = np.array(X_inducing)  # indices of MOFs in inducing array 
+        self.jitter = float(jitter)
 
-    # def fit(self, X_train, y_train):
-    #     self.y_train = y_train
-    #     self.model.fit(X_train, y_train)
+    def fit(self, X_train: NDArray[np.int_], y_train: NDArray[np.float_]) -> None:
+        """Fit model to passed data.
 
-    #     prior_var = y_train.std() ** 2
-    #     self.kernel_var = self.model.kernel_.k2.theta[-1] ** 2 # if using white kernel as second kernel ? (WILL THIS WORK FOR MKL MODEL OR SHOULD I JUST INDEX ALL OF THETA)
+        Parameters
+        ----------
+        X_train : NDArray[np.int_]
+            Indices of features to extract for kernel.
+            
+        y_train : NDArray[np.float_]
+            performance values (not indices) of the passed MOF indices.
+        """
+        self.y_train = y_train
+        self.model.fit(X_train, y_train)
 
-    #     k_xm = self.model.kernel_(X_train, self.X_inducing)
-    #     k_mm = self.model.kernel_(self.X_inducing, self.X_inducing)
-    #     self.sig_xm_train = self. kernel_var * k_xm
-    #     self.sig_mm_train = self.kernel_var * k_mm + np.identity(n=len(self.X_inducing)) * self.kernel_var * self.jitter
-    #     self.updated_var = self.kernel_var + prior_var - np.sum(np.multiply(np.linalg.solve(self.sig_mm_train, self.sig_xm_train.T), self.sig_xm_train.T), 0)
+        prior_var = y_train.std() ** 2
+        self.kernel_var = self._get_kernel_variance()
+
+        k_xm = self.model.kernel_(X_train, self.X_inducing)
+        k_mm = self.model.kernel_(self.X_inducing, self.X_inducing)
+        self.sig_xm_train = self.kernel_var * k_xm
+        self.sig_mm_train = self.kernel_var * k_mm + np.identity(n=len(self.X_inducing)) * self.kernel_var * self.jitter
+        self.updated_var = self.kernel_var + prior_var - np.sum(np.multiply(np.linalg.solve(self.sig_mm_train, self.sig_xm_train.T), self.sig_xm_train.T), 0)
+        
+    def _get_kernel_variance(self) -> float:
+        """Get the kernel variance from the WhiteKernel in the kernel sum.
+        the iteration saves having to specify `k2` directly which assumes that order of kernel operations in the sum is the same.
+        
+        sklearn returns log transformed values so `np.exp` used to transform back to linear values.
+
+        Returns
+        -------
+        float
+            kernel variance as found by the WhiteKernel
+        """
+        params = self.model.kernel_.get_params()
+        noise_terms = [np.exp(params[k]) for k in params if 'noise_level' in k and 'bound' not in k]
+        assert len(noise_terms) == 1
+        return noise_terms[0]
 
     # def _perform_sparse_manipulations(self, X, prior_mu):
 
@@ -166,4 +208,6 @@ class SparseGaussianProcess:
 # # TODO : speak with Tom to confirm that the kernel variance is the white kernel noise + figure out a good way to get this from both single kernel and MKL model (likely just have it as last then extract the final theta from model params instead of kernel indexing)
 
 # # TODO : write the inducing functions (cluster then return centroids), consider how to do this for PCFP
+## >* the centroids to be the result of performing a clustering on each dataset and selectingn/4 centroids from each, final matrix to be the combination of all 4 centroids
+
 # # TODO : figure out how to make it work together with the script
