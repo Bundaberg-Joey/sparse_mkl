@@ -9,7 +9,8 @@ class GreedySurrogateModel:
     
     def __init__(self, model: EnsembleSparseGaussianProcess, n_post: int, n_opt: int) -> None:
         self.model = model
-        self.acquisitor = GreedyNRanking(n_post=n_post, n_opt=n_opt)
+        self.n_post = int(n_post)
+        self.acquisitor = GreedyNRanking(n_opt=n_opt)
     
     def fit(self, x: NDArray[np.int_], y: NDArray[np.int_]) -> None:
         self.model.fit(x, y)
@@ -19,6 +20,6 @@ class GreedySurrogateModel:
         return np.argsort(alpha)[::-1]  # index of largest alpha is first
             
     def determine_alpha(self, x: NDArray[np.int_]) -> NDArray[np.float_]:
-        posterior = self.model.sample_y(x)
+        posterior = self.model.sample_y(x, n_samples=self.n_post)
         alpha = self.acquisitor.score_points(posterior)
         return abs(alpha)
