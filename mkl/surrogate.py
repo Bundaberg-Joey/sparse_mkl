@@ -20,6 +20,6 @@ class GreedySurrogateModel:
         return np.argsort(alpha)[::-1]  # index of largest alpha is first
             
     def determine_alpha(self, x: NDArray[np.int_]) -> NDArray[np.float_]:
-        posterior = self.model.sample_y(x, n_samples=self.n_post)
+        posterior = abs(self.model.sample_y(x, n_samples=self.n_post))
         alpha = self.acquisitor.score_points(posterior)
-        return abs(alpha)
+        return alpha
