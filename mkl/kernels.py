@@ -1,14 +1,45 @@
+from typing import Union, Optional
 
 import numpy as np
+from numpy.typing import NDArray
 from sklearn.gaussian_process.kernels import Kernel, RBF
 from sklearn.utils import gen_even_slices
 
 from joblib import Parallel, delayed, effective_n_jobs
 
+from mkl.data import Hdf5Dataset
 
 
-def calc_tanimoto_similarity(X, Y, n_jobs):
+# -----------------------------------------------------------------------------------------------------------------------------
+
+
+class TanimotoKernel(Kernel):
+    """Tanimoto kernel for use with gaussian processes.
+    Idices are passed to the __call__ method for `X` and `Y` to allow mkl to work together.
+    Hence a `mkl.data.Hdf5Dataset` or NDArray is passed at init which is sliced for the passed indices.
+    """
     
+    def __init__(self, dataset:Union[Hdf5Dataset, NDArray], n_jobs=1) -> None:
+        self.dataset = dataset
+        self.n_jobs = int(n_jobs)
+    
+    def __call__(self, X: NDArray[np.int_], Y: Optional[NDArray[np._int]]=None, eval_gradient: bool=False):
+        Xa = self.dataset[X]
+        
+        if not Y:
+            K = self._calc_sim(Xa, Xa, self.n_jobs)
+        else:
+            Xb = self.dataset[X]
+            K = self._calc_sim(Xa, Xb, self.n_jobs)
+            
+        if eval_gradient:
+            return K, np.zeros(shape=(len(Xa), len(Xa), 0))  # fixed params
+        else:
+            return K
+        
+    @staticmethod
+    def _calc_sim(X: NDArray[NDArray[np.int_]], Y: NDArray[NDArray[np.int_]], n_jobs: int) -> NDArray[NDArray[np.float_]]:
+        
         def _dist_wrapper(dist_func, dist_matrix, slice_, *args, **kwargs):
             #Taken from `sklearn.metrics.pairwise` without modification.
             dist_matrix[:, slice_] = dist_func(*args, **kwargs)
@@ -31,52 +62,38 @@ def calc_tanimoto_similarity(X, Y, n_jobs):
         return K
 
 
-
-class TanimotoKernel(Kernel):
-    
-    def __init__(self, n_jobs) -> None:
-    
-    def __call__(self, X, Y=None, eval_gradient=False):
-        if Y is None:
-            K = self._calc_tanimoto_similarity(X, X, self.n_jobs)
-        else:
-            K = self._calc_tanimoto_similarity(X, Y, self.n_jobs)
-        
-        if eval_gradient:
-            n = len(X)
-            return K, np.zeros(shape=(n, n, 0))  # fixed hyper parameters
-        else:
-            return K
-
-    def diag(self, X):
+    def diag(self, X: NDArray):
         return np.ones(len(X))  # tanimoto diagonal always 1
 
     def is_stationary(self):
         return True
 
 
+# -----------------------------------------------------------------------------------------------------------------------------
+
+
 class RbfKernel(RBF):
-    """For consistent API during screening, this class is the same as `sklearn.gaussian_process.kernels.RBF` but is
-    set up to accept index arrays rather than the explicit features themselves.
-    This is identical to how the other Tanimoto kernels are run.
+    """Identical to `sklearn.gaussian_process.kernels.RBF` but accepts indices rather than explicit features.
+    Explicit features are indexed from the database provided at init.
+    Allows for easier compatability with other MKL models.
     """
 
-    def __init__(self, X_rbf, length_scale):
-        # store the feature matrix
-        self.X_rbf = X_rbf
+    def __init__(self, dataset:Union[Hdf5Dataset, NDArray], length_scale: NDArray[np.float_]):
+        self.dataset = dataset
         super().__init__(length_scale=length_scale)
 
-    def __call__(self, X, Y=None, eval_gradient=False):
-        # slices stored array and passes it to kernel call via super.
-        Xa = slice_features(self.X_rbf, X)
+    def __call__(self, X: NDArray[np.int_], Y: Optional[NDArray[np._int]]=None, eval_gradient: bool=False):
+        Xa = self.dataset[X]
 
         if Y is None:
             return super().__call__(Xa, Y, eval_gradient)
         else:
-            Xb = slice_features(self.X_rbf, Y)
+            Xb = self.dataset[Y]
             return super().__call__(Xa, Xb, eval_gradient)
 
-    def diag(self, X):
-        # slicing behaviour as with `__call__`
-        Xa = slice_features(self.X_rbf, X)
+    def diag(self, X: NDArray):
+        Xa = self.dataset[X]
         return super().diag(Xa)
+
+
+# -----------------------------------------------------------------------------------------------------------------------------
