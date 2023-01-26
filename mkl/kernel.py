@@ -2,7 +2,7 @@ from typing import Union, Optional
 
 import numpy as np
 from numpy.typing import NDArray
-from sklearn.gaussian_process.kernels import Kernel, RBF
+from sklearn.gaussian_process.kernels import Kernel, RBF, WhiteKernel
 from sklearn.utils import gen_even_slices
 
 from joblib import Parallel, delayed, effective_n_jobs
@@ -13,30 +13,26 @@ from mkl.data import Hdf5Dataset
 # -----------------------------------------------------------------------------------------------------------------------------
 
 
-class TanimotoKernel(Kernel):
-    """Tanimoto kernel for use with gaussian processes.
-    Idices are passed to the __call__ method for `X` and `Y` to allow mkl to work together.
-    Hence a `mkl.data.Hdf5Dataset` or NDArray is passed at init which is sliced for the passed indices.
+class TanimotoKernelIdx(Kernel):
+    """Tanimoto kernel for integer arrays but accepts indices rather than explicit features.
+    Explicit features are indexed from the database provided at init.
+    Allows for easier compatability with other MKL models.
     """
     
-    def __init__(self, dataset:Union[Hdf5Dataset, NDArray], n_jobs=1) -> None:
-        self.dataset = dataset
+    def __init__(self, n_jobs: int=1) -> None:
         self.n_jobs = int(n_jobs)
     
     def __call__(self, X: NDArray[np.int_], Y: Optional[NDArray[np._int]]=None, eval_gradient: bool=False):
-        Xa = self.dataset[X]
-        
         if not Y:
-            K = self._calc_sim(Xa, Xa, self.n_jobs)
+            K = self._calc_sim(X, X, self.n_jobs)
         else:
-            Xb = self.dataset[X]
-            K = self._calc_sim(Xa, Xb, self.n_jobs)
+            K = self._calc_sim(X, Y, self.n_jobs)
             
         if eval_gradient:
-            return K, np.zeros(shape=(len(Xa), len(Xa), 0))  # fixed params
+            return K, np.zeros(shape=(len(X), len(X), 0))  # fixed params
         else:
             return K
-        
+
     @staticmethod
     def _calc_sim(X: NDArray[NDArray[np.int_]], Y: NDArray[NDArray[np.int_]], n_jobs: int) -> NDArray[NDArray[np.float_]]:
         
@@ -61,7 +57,6 @@ class TanimotoKernel(Kernel):
         p(fd(_tanimoto, K, s, X, Y[s]) for s in gen_even_slices(len(Y), n_jobs))
         return K
 
-
     def diag(self, X: NDArray):
         return np.ones(len(X))  # tanimoto diagonal always 1
 
@@ -72,7 +67,7 @@ class TanimotoKernel(Kernel):
 # -----------------------------------------------------------------------------------------------------------------------------
 
 
-class RbfKernel(RBF):
+class RbfKernelIdx(RBF):
     """Identical to `sklearn.gaussian_process.kernels.RBF` but accepts indices rather than explicit features.
     Explicit features are indexed from the database provided at init.
     Allows for easier compatability with other MKL models.
@@ -97,3 +92,30 @@ class RbfKernel(RBF):
 
 
 # -----------------------------------------------------------------------------------------------------------------------------
+
+
+class WhiteKernelIdx(WhiteKernel):
+    """Identical to `sklearn.gaussian_process.kernels.WhiteKernel` but accepts indices rather than explicit features.
+    Explicit features are indexed from the database provided at init.
+    Allows for easier compatability with other MKL models.
+    """
+    
+    def __init__(self, dataset:Union[Hdf5Dataset, NDArray], noise_level: float=1.0):
+        self.dataset = dataset
+        super().__init__(noise_level=noise_level)
+        
+    def __call__(self, X, Y=None, eval_gradient=False):
+        X = self.dataset[X]
+        
+        if Y is None:
+            return super().__call__(X, Y, eval_gradient)
+        else:
+            Y = X if Y is None else self.dataset[Y]
+            return super().__call__(X, Y, eval_gradient)
+    
+    def diag(self, X):
+        X = self.dataset[X]
+        return super().diag(X)
+    
+    
+    # -----------------------------------------------------------------------------------------------------------------------------
