@@ -80,6 +80,7 @@ class SparseGaussianProcess:
         Parameters
         ----------
         X : NDArray[np.int_]
+            Indices of features to extract for kernel.
             Indices to use
             
         prior_mu : float
@@ -103,17 +104,32 @@ class SparseGaussianProcess:
         mu_m_pos = prior_mu + J - np.matmul(K, np.linalg.solve(K + self.sig_mm_train, J))
         return  sig_xm_query, sig_mm_query, sig_mm_pos, mu_m_pos
 
-    # def predict(self, X, return_std=False):
-    #     prior_mu = self.y_train.mean()
-    #     sig_xm_query, sig_mm_query, sig_mm_pos, mu_m_pos = self._perform_sparse_manipulations(X, prior_mu)
-       
-    #     mu_X_pos = prior_mu + np.matmul(sig_xm_query, np.linalg.solve(sig_mm_query, mu_m_pos - prior_mu))
+    def predict(self, X: NDArray[np.int], return_std: bool=False) -> Union[Tuple[NDArray, NDArray], NDArray]:
+        """Make predictions for passed MOFs
 
-    #     if return_std:
-    #         var_X_pos = np.sum(np.multiply(np.matmul(np.linalg.solve(sig_mm_query, np.linalg.solve(sig_mm_query, sig_mm_pos).T), sig_xm_query.T), sig_xm_query.T), 0)
-    #         return mu_X_pos, np.sqrt(var_X_pos)
-    #     else:
-    #         return mu_m_pos
+        Parameters
+        ----------
+        X_train : NDArray[np.int_]
+            Indices of features to extract for kernel.
+            
+        return_std : bool, optional
+            return the std of the model predictions (not calculated if value is False)
+
+        Returns
+        -------
+        Union[Tuple[NDArray, NDArray], NDArray]
+            Either two 1D arrays or a single array depending if `return_std` is specified.
+        """
+        prior_mu = self.y_train.mean()
+        sig_xm_query, sig_mm_query, sig_mm_pos, mu_m_pos = self._perform_sparse_manipulations(X, prior_mu)
+       
+        mu_X_pos = prior_mu + np.matmul(sig_xm_query, np.linalg.solve(sig_mm_query, mu_m_pos - prior_mu))
+
+        if return_std:
+            var_X_pos = np.sum(np.multiply(np.matmul(np.linalg.solve(sig_mm_query, np.linalg.solve(sig_mm_query, sig_mm_pos).T), sig_xm_query.T), sig_xm_query.T), 0)
+            return mu_X_pos, np.sqrt(var_X_pos)
+        else:
+            return mu_m_pos
 
     # def sample_y(self, X, n_samples):
     #     prior_mu = self.y_train.mean()
