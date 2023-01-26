@@ -5,7 +5,7 @@ from numpy.typing import NDArray
 from scipy.stats import norm
 
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, Kernel
+from sklearn.gaussian_process.kernels import RBF, Kernel, Sum
 
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -157,44 +157,85 @@ class SparseGaussianProcess:
 # ---------------------------------------------------------------------------------------------------------------
 
 
-# class SparseMKL(SparseGaussianProcess):
+class SparseMKL(SparseGaussianProcess):
+    """_Sparse Multiple Kernel Learner.
+    Optimimses the weights of the passed kernels by performing BO over a generated dirichlet  parameter space using EI sampling.
+    The passed white noise kernel is NOT included in the weighting optimisation process.
+    """
 
-#     def __init__(self, kernels: List[Kernel], X_inducing: NDArray[NDArray[np.float_]], jitter: float = 0.000001) -> None:
-#         super().__init__(None, X_inducing, jitter)  # pass model as none, bad code but does the job since set later on
-#         self.kernels = kernels
-#         nk = len(self.kernels)
-#         self.weights = np.ones(nk) / nk  # start off with evenly weighted kernels
-#         self._sampled_weights = [self.weights]
-#         self._weight_space = np.random.RandomState(1).dirichlet(np.ones(nk), size=1_000)
-#         self._reward_values = []
-#         self._optimmiser = GaussianProcessRegressor(kernel=RBF(lengthscales=np.ones(self.weight_space.shape[1])))
-
-#     @staticmethod
-#     def _acquisition(mu, sigma, y_max):
-#         # expected improvement sampling
-#         improvement = mu - y_max
-#         scaled_mu = np.divide(improvement, sigma)
-#         alpha = improvement * norm.cdf(scaled_mu) + sigma * norm.pdf(scaled_mu)
-#         ranked = np.argsort(alpha)
-#         return ranked
-
-#     def get_weighted_kernel(self):
-#         return sum([w * k for w, k in zip(self.weights, self.kernels)] + [self.white_noise_kernel])  # add it here but dont weight
-
-#     def fit(self, X_train, y_train):
-#         assert False, ' this is nice but wont work since cant handle multiple fingerprints unless the tanimoto kernel also contains the HDF5 dataset which is loaded from...'
-#         self.model = GaussianProcessRegressor(kernel=self.get_weighted_kernel())
-#         super().fit(X_train, y_train)
-#         y_pred, _ = self.model.predict(X_train)
-#         self._reward_values.append(-np.median(abs(y_train - y_pred)))  # median absolute error
+    def __init__(self, kernels: List[Kernel], white_noise_kernel: Kernel, X_inducing: NDArray[np.int_], jitter: float=1e-6) -> None:
+        """
+        Parameters
+        ----------
+        kernels : List[Kernel]
+            List of instantiated kernels, must accept integer indices instead of raw features to facilitate MKL with multiple features / kernels.
+            Does NOT include the white noise kernel
+            
+        white_noise_kernel: Kernel
+            Instantiated white noise kernel.
+            Must accept integer indices instead of raw features.
+            
+        X_inducing : NDArray[np.int_]
+            Indices of MOFs to use for inducing matrix.
+            
+        jitter : float
+            slight noise value to prevent numerical issues.
+        """
+        self.kernels = kernels
+        self.white_noise_kernel = white_noise_kernel
+        nk = len(self.kernels)
+        self.weights = np.ones(nk) / nk  # start off with evenly weighted kernels
         
-#         self._optimiser.fit(self._sampled_weights, self._reward_values)
-#         mu, std = self._optimmiser.predict(self._weight_space)    
-#         maximises_score = self._acquisition(mu, std, max(self._reward_values))
-#         self.weights = self._weight_space[maximises_score[-1]]
+        self._sampled_weights = [self.weights]
+        self._weight_space = np.random.RandomState(1).dirichlet(np.ones(nk), size=1_000)
+        self._reward_values = []
+        self._optimiser = GaussianProcessRegressor(kernel=RBF(lengthscales=np.ones(self.weight_space.shape[1])))
         
-#         self._sampled_weights.append(self.weights)
-#         self.model = GaussianProcessRegressor(kernel=self.get_weighted_kernel())
+        self.model = GaussianProcessRegressor(kernel=self.get_weighted_kernel(), normalize_y=True)
+        super().__init__(self.model, X_inducing, jitter)
+
+
+    @staticmethod
+    def _ei_sampling(mu: NDArray[np.float_], sigma: NDArray[np.float_], y_max: float) -> NDArray[np.int_]:
+        improvement = mu - y_max
+        scaled_mu = np.divide(improvement, sigma)
+        alpha = improvement * norm.cdf(scaled_mu) + sigma * norm.pdf(scaled_mu)
+        ranked = np.argsort(alpha)
+        return ranked
+
+    def get_weighted_kernel(self) -> Sum:
+        """Returns the kernels, weighted with the current values for `self.weights`.
+        A `WhitenoiseKernel` is also included here to allow for determination of the kernel varaince for the sparse process.
+        The WhitenoiseKernel is unweighted however.
+
+        Returns
+        -------
+        Sum
+        """
+        return sum([w * k for w, k in zip(self.weights, self.kernels)] + [self.white_noise_kernel])  # add it here but dont weight
+
+    def fit(self, X_train: NDArray[np.int_], y_train: NDArray[np.float_]) -> None:
+        """Fit model to passed data.
+
+        Parameters
+        ----------
+        X_train : NDArray[np.int_]
+            Indices of features to extract for kernel.
+            
+        y_train : NDArray[np.float_]
+            performance values (not indices) of the passed MOF indices.
+        """
+        super().fit(X_train, y_train)
+        y_pred, _ = self.model.predict(X_train)
+        self._reward_values.append(-np.median(abs(y_train - y_pred)))  # median absolute error
+        
+        self._optimiser.fit(self._sampled_weights, self._reward_values)
+        mu, std = self._optimiser.predict(self._weight_space)    
+        maximises_score = self._ei_sampling(mu, std, max(self._reward_values))
+        self.weights = self._weight_space[maximises_score[-1]]
+        
+        self._sampled_weights.append(self.weights)
+        self.model = GaussianProcessRegressor(kernel=self.get_weighted_kernel())  #make sure weights are updated at the end for next model call.
 
 
 # # ---------------------------------------------------------------------------------------------------------------
@@ -280,7 +321,6 @@ class EnsembleSparseGaussianProcess:
 
 
 # # ---------------------------------------------------------------------------------------------------------------
-# TODO : quickly clean up the sparseMKL
 # TODO : consider tests for  kernels (quick and only for Tanimoto and only for the actual maths)
 # TODO : need to do a screening on the COF data to make sure it doens't break (even jst doing a fit to random data would be excellent...)
 # TODO : make sure the other models don't also break
