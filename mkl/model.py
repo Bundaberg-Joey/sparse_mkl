@@ -74,19 +74,34 @@ class SparseGaussianProcess:
         assert len(noise_terms) == 1
         return noise_terms[0]
 
-    # def _perform_sparse_manipulations(self, X, prior_mu):
+    def _perform_sparse_manipulations(self, X: NDArray[np.int_], prior_mu: float) -> Tuple[NDArray, NDArray, NDArray, NDArray]:
+        """relevant matrix transformations / operations to achieve sparse GP
 
-    #     k_xm_query = self.model.kernel(X, self.X_inducing)
-    #     k_mm_query = self.model.kernel(self.X_inducing, self.X_inducing)
+        Parameters
+        ----------
+        X : NDArray[np.int_]
+            Indices to use
+            
+        prior_mu : float
+            mean of he prior distribution trget values.
 
-    #     sig_xm_query = self.kernel_var * k_xm_query
-    #     sig_mm_query = self.kernel_var * k_mm_query + np.identity(len(self.X_inducing)) * self.jitter * self.kernel_var
+        Returns
+        -------
+        Tuple[NDArray, NDArray, NDArray, NDArray]
+            transformed matrices.
+        """
 
-    #     K = np.matmul(self.sig_xm_train.T, np.divide(self.sig_xm_train, self.updated_var.reshape(-1, 1)))
-    #     sig_mm_pos = sig_mm_query - K + np.matmul(K, np.linalg.solve(K + sig_mm_query, K))
-    #     J = np.matmul(self.sig_xm_train.T, np.divide(self.y_train - prior_mu, self.updated_var))
-    #     mu_m_pos = prior_mu + J - np.matmul(K, np.linalg.solve(K + self.sig_mm_train, J))
-    #     return  sig_xm_query, sig_mm_query, sig_mm_pos, mu_m_pos
+        k_xm_query = self.model.kernel(X, self.X_inducing)
+        k_mm_query = self.model.kernel(self.X_inducing, self.X_inducing)
+
+        sig_xm_query = self.kernel_var * k_xm_query
+        sig_mm_query = self.kernel_var * k_mm_query + np.identity(len(self.X_inducing)) * self.jitter * self.kernel_var
+
+        K = np.matmul(self.sig_xm_train.T, np.divide(self.sig_xm_train, self.updated_var.reshape(-1, 1)))
+        sig_mm_pos = sig_mm_query - K + np.matmul(K, np.linalg.solve(K + sig_mm_query, K))
+        J = np.matmul(self.sig_xm_train.T, np.divide(self.y_train - prior_mu, self.updated_var))
+        mu_m_pos = prior_mu + J - np.matmul(K, np.linalg.solve(K + self.sig_mm_train, J))
+        return  sig_xm_query, sig_mm_query, sig_mm_pos, mu_m_pos
 
     # def predict(self, X, return_std=False):
     #     prior_mu = self.y_train.mean()
