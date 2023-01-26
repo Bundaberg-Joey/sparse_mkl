@@ -43,6 +43,9 @@ class Hdf5Dataset:
             X_ = f[self.data_key]
             X = X_[k[ka]][kaa]
             
+        if X.ndim == 1:
+            X = X.reshape(1, -1)  # ensure always 2d output for simplicity
+            
         return X
     
 
