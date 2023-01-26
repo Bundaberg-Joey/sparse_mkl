@@ -1,19 +1,18 @@
 from typing import List, Tuple, Union
 
 import numpy as np
-from np.typing import NDArray
+from numpy.typing import NDArray
 from scipy.stats import norm
 
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, Kernel
 
-from ami.predictors.base.model import ImplementsFit, ImplementsPredict, ImplementsSampleY, GaussianProcess
-
+from mkl.kernel import TanimotoKernel, RbfKernel
 
 # ----------------------------------------------------------------------------------------------------------------------
 
 
-class SparseGaussianProcess(ImplementsFit, ImplementsPredict, ImplementsSampleY):
+class SparseGaussianProcess:
 
     def __init__(self, model: GaussianProcessRegressor, X_inducing: NDArray[NDArray[np.float_]], jitter: float=1e-6) -> None:
         self.model = model
@@ -72,102 +71,99 @@ class SparseGaussianProcess(ImplementsFit, ImplementsPredict, ImplementsSampleY)
 # ---------------------------------------------------------------------------------------------------------------
 
 
-class SparseMKL(SparseGaussianProcess):
+# class SparseMKL(SparseGaussianProcess):
 
-    def __init__(self, kernels: List[Kernel], X_inducing: NDArray[NDArray[np.float_]], jitter: float = 0.000001) -> None:
-        super().__init__(None, X_inducing, jitter)  # pass model as none, bad code but does the job since set later on
-        self.kernels = kernels
-        nk = len(self.kernels)
-        self.weights = np.ones(nk) / nk  # start off with evenly weighted kernels
-        self._sampled_weights = [self.weights]
-        self._weight_space = np.random.RandomState(1).dirichlet(np.ones(nk), size=1_000)
-        self._reward_values = []
-        self._optimmiser = GaussianProcessRegressor(kernel=RBF(lengthscales=np.ones(self.weight_space.shape[1])))
+#     def __init__(self, kernels: List[Kernel], X_inducing: NDArray[NDArray[np.float_]], jitter: float = 0.000001) -> None:
+#         super().__init__(None, X_inducing, jitter)  # pass model as none, bad code but does the job since set later on
+#         self.kernels = kernels
+#         nk = len(self.kernels)
+#         self.weights = np.ones(nk) / nk  # start off with evenly weighted kernels
+#         self._sampled_weights = [self.weights]
+#         self._weight_space = np.random.RandomState(1).dirichlet(np.ones(nk), size=1_000)
+#         self._reward_values = []
+#         self._optimmiser = GaussianProcessRegressor(kernel=RBF(lengthscales=np.ones(self.weight_space.shape[1])))
 
-    @staticmethod
-    def _acquisition(mu, sigma, y_max):
-        # expected improvement sampling
-        improvement = mu - y_max
-        scaled_mu = np.divide(improvement, sigma)
-        alpha = improvement * norm.cdf(scaled_mu) + sigma * norm.pdf(scaled_mu)
-        ranked = np.argsort(alpha)
-        return ranked
+#     @staticmethod
+#     def _acquisition(mu, sigma, y_max):
+#         # expected improvement sampling
+#         improvement = mu - y_max
+#         scaled_mu = np.divide(improvement, sigma)
+#         alpha = improvement * norm.cdf(scaled_mu) + sigma * norm.pdf(scaled_mu)
+#         ranked = np.argsort(alpha)
+#         return ranked
 
-    def get_weighted_kernel(self):
-        return sum([w * k for w, k in zip(self.weights, self.kernels)] + [self.white_noise_kernel])  # add it here but dont weight
+#     def get_weighted_kernel(self):
+#         return sum([w * k for w, k in zip(self.weights, self.kernels)] + [self.white_noise_kernel])  # add it here but dont weight
 
-    def fit(self, X_train, y_train):
-        assert False, ' this is nice but wont work since cant handle multiple fingerprints unless the tanimoto kernel also contains the HDF5 dataset which is loaded from...'
-        self.model = GaussianProcessRegressor(kernel=self.get_weighted_kernel())
-        super().fit(X_train, y_train)
-        y_pred, _ = self.model.predict(X_train)
-        self._reward_values.append(-np.median(abs(y_train - y_pred)))  # median absolute error
+#     def fit(self, X_train, y_train):
+#         assert False, ' this is nice but wont work since cant handle multiple fingerprints unless the tanimoto kernel also contains the HDF5 dataset which is loaded from...'
+#         self.model = GaussianProcessRegressor(kernel=self.get_weighted_kernel())
+#         super().fit(X_train, y_train)
+#         y_pred, _ = self.model.predict(X_train)
+#         self._reward_values.append(-np.median(abs(y_train - y_pred)))  # median absolute error
         
-        self._optimiser.fit(self._sampled_weights, self._reward_values)
-        mu, std = self._optimmiser.predict(self._weight_space)    
-        maximises_score = self._acquisition(mu, std, max(self._reward_values))
-        self.weights = self._weight_space[maximises_score[-1]]
+#         self._optimiser.fit(self._sampled_weights, self._reward_values)
+#         mu, std = self._optimmiser.predict(self._weight_space)    
+#         maximises_score = self._acquisition(mu, std, max(self._reward_values))
+#         self.weights = self._weight_space[maximises_score[-1]]
         
-        self._sampled_weights.append(self.weights)
-        self.model = GaussianProcessRegressor(kernel=self.get_weighted_kernel())
+#         self._sampled_weights.append(self.weights)
+#         self.model = GaussianProcessRegressor(kernel=self.get_weighted_kernel())
 
 
-# ---------------------------------------------------------------------------------------------------------------
+# # ---------------------------------------------------------------------------------------------------------------
 
 
-class EnsembleSparseGp(GaussianProcess):
+# class EnsembleSparseGp(GaussianProcess):
 
-    def __init__(self, rbf_model: SparseGaussianProcess, mkl_model: SparseMKL) -> None:
-        self.rbf_model = rbf_model
-        self.mkl_model = mkl_model
+#     def __init__(self, rbf_model: SparseGaussianProcess, mkl_model: SparseMKL) -> None:
+#         self.rbf_model = rbf_model
+#         self.mkl_model = mkl_model
 
-    def fit(self, X_train: List[str], y_train: NDArray[np.float_]) -> None:
-        # X = hmof-names to use for training
-        # y = np.array of target values
-        self.y_train = np.array(y_train)
+#     def fit(self, X_train: List[str], y_train: NDArray[np.float_]) -> None:
+#         # X = hmof-names to use for training
+#         # y = np.array of target values
+#         self.y_train = np.array(y_train)
 
-        self.rbf_model.fit(X, y_train)
-        self.mkl_model.fit(X, y_train)
+#         self.rbf_model.fit(X, y_train)
+#         self.mkl_model.fit(X, y_train)
 
-    def predict(self, X: List[str], return_std: bool=False) -> Tuple[NDArray[np.float_], NDArray[np.float_]]:
-        # X = hmof-names to use for training
-        def _calc_precision(std):
-            return 1 / (std ** 2)
+#     def predict(self, X: List[str], return_std: bool=False) -> Tuple[NDArray[np.float_], NDArray[np.float_]]:
+#         # X = hmof-names to use for training
+#         def _calc_precision(std):
+#             return 1 / (std ** 2)
 
-        mu_rbf, std_rbf = self.rbf_model.predict(X, return_std=True)
-        mu_mkl, std_mkl = self.mkl_model.predict(X, return_std=True)
+#         mu_rbf, std_rbf = self.rbf_model.predict(X, return_std=True)
+#         mu_mkl, std_mkl = self.mkl_model.predict(X, return_std=True)
         
-        p1, p2 = _calc_precision(std_rbf), _calc_precision(std_mkl)
-        p = p1 + p2
+#         p1, p2 = _calc_precision(std_rbf), _calc_precision(std_mkl)
+#         p = p1 + p2
         
-        mu = ((p1 * mu_rbf) + (p2 * mu_mkl)) / p
-        std = 1 / np.sqrt(p)
-        return mu, std
+#         mu = ((p1 * mu_rbf) + (p2 * mu_mkl)) / p
+#         std = 1 / np.sqrt(p)
+#         return mu, std
 
-    def sample_y(self, X: List[str], n_samples: int) -> Union[NDArray[np.float_], NDArray[NDArray[np.float_]]]:
-        # X = hmof-names to use for training
-        post_rbf = self.rbf_model.sample_y(X, n_samples)
-        post_mkl = self.mkl_model.sample_y(X, n_samples)        
-        return np.hstack((post_rbf, post_mkl))
+#     def sample_y(self, X: List[str], n_samples: int) -> Union[NDArray[np.float_], NDArray[NDArray[np.float_]]]:
+#         # X = hmof-names to use for training
+#         post_rbf = self.rbf_model.sample_y(X, n_samples)
+#         post_mkl = self.mkl_model.sample_y(X, n_samples)        
+#         return np.hstack((post_rbf, post_mkl))
 
-    def get_max_y(self) -> np.float_:
-        return self.y_train.max()
-
-
-# ---------------------------------------------------------------------------------------------------------------
+#     def get_max_y(self) -> np.float_:
+#         return self.y_train.max()
 
 
+# # ---------------------------------------------------------------------------------------------------------------
 
 
-# ---------------------------------------------------------------------------------------------------------------
 
 
-# TODO : implement a HDF5 data base class (likely need to compile data from E6 sources for this) but it's just a wrapper for a HDF dataset
-        # it does keep track of the materials which have been sampled though?
+# # ---------------------------------------------------------------------------------------------------------------
 
-# TODO : figure out how to make it work with the models as a MKL approach (within the kernel itself?)
 
-# TODO : speak with Tom to confirm that the kernel variance is the white kernel noise + figure out a good way to get this from both single kernel and MKL model (likely just have it as last then extract the final theta from model params instead of kernel indexing)
+# # TODO : figure out how to make it work with the models as a MKL approach (within the kernel itself?)
 
-# TODO : write the inducing functions (cluster then return centroids), consider how to do this for PCFP
-# TODO : figure out how to make it work together with the script
+# # TODO : speak with Tom to confirm that the kernel variance is the white kernel noise + figure out a good way to get this from both single kernel and MKL model (likely just have it as last then extract the final theta from model params instead of kernel indexing)
+
+# # TODO : write the inducing functions (cluster then return centroids), consider how to do this for PCFP
+# # TODO : figure out how to make it work together with the script
