@@ -14,58 +14,58 @@ from mkl.kernel import TanimotoKernel, RbfKernel
 
 class SparseGaussianProcess:
 
-    def __init__(self, model: GaussianProcessRegressor, X_inducing: NDArray[NDArray[np.float_]], jitter: float=1e-6) -> None:
+    def __init__(self, model: GaussianProcessRegressor, X_inducing: NDArray[np.int_], jitter: float=1e-6) -> None:
         self.model = model
         self.jitter = float(jitter)
-        self.X_inducing = np.array(X_inducing)  # will remain fixed throughout the entire screening process so just pass as init 
+        self.X_inducing = np.array(X_inducing)  # indices of MOFs in inducing array 
 
-    def fit(self, X_train, y_train):
-        self.y_train = y_train
-        self.model.fit(X_train, y_train)
+    # def fit(self, X_train, y_train):
+    #     self.y_train = y_train
+    #     self.model.fit(X_train, y_train)
 
-        prior_var = y_train.std() ** 2
-        self.kernel_var = self.model.kernel_.k2.theta[-1] ** 2 # if using white kernel as second kernel ? (WILL THIS WORK FOR MKL MODEL OR SHOULD I JUST INDEX ALL OF THETA)
+    #     prior_var = y_train.std() ** 2
+    #     self.kernel_var = self.model.kernel_.k2.theta[-1] ** 2 # if using white kernel as second kernel ? (WILL THIS WORK FOR MKL MODEL OR SHOULD I JUST INDEX ALL OF THETA)
 
-        k_xm = self.model.kernel_(X_train, self.X_inducing)
-        k_mm = self.model.kernel_(self.X_inducing, self.X_inducing)
-        self.sig_xm_train = self. kernel_var * k_xm
-        self.sig_mm_train = self.kernel_var * k_mm + np.identity(n=len(self.X_inducing)) * self.kernel_var * self.jitter
-        self.updated_var = self.kernel_var + prior_var - np.sum(np.multiply(np.linalg.solve(self.sig_mm_train, self.sig_xm_train.T), self.sig_xm_train.T), 0)
+    #     k_xm = self.model.kernel_(X_train, self.X_inducing)
+    #     k_mm = self.model.kernel_(self.X_inducing, self.X_inducing)
+    #     self.sig_xm_train = self. kernel_var * k_xm
+    #     self.sig_mm_train = self.kernel_var * k_mm + np.identity(n=len(self.X_inducing)) * self.kernel_var * self.jitter
+    #     self.updated_var = self.kernel_var + prior_var - np.sum(np.multiply(np.linalg.solve(self.sig_mm_train, self.sig_xm_train.T), self.sig_xm_train.T), 0)
 
-    def _perform_sparse_manipulations(self, X, prior_mu):
+    # def _perform_sparse_manipulations(self, X, prior_mu):
 
-        k_xm_query = self.model.kernel(X, self.X_inducing)
-        k_mm_query = self.model.kernel(self.X_inducing, self.X_inducing)
+    #     k_xm_query = self.model.kernel(X, self.X_inducing)
+    #     k_mm_query = self.model.kernel(self.X_inducing, self.X_inducing)
 
-        sig_xm_query = self.kernel_var * k_xm_query
-        sig_mm_query = self.kernel_var * k_mm_query + np.identity(len(self.X_inducing)) * self.jitter * self.kernel_var
+    #     sig_xm_query = self.kernel_var * k_xm_query
+    #     sig_mm_query = self.kernel_var * k_mm_query + np.identity(len(self.X_inducing)) * self.jitter * self.kernel_var
 
-        K = np.matmul(self.sig_xm_train.T, np.divide(self.sig_xm_train, self.updated_var.reshape(-1, 1)))
-        sig_mm_pos = sig_mm_query - K + np.matmul(K, np.linalg.solve(K + sig_mm_query, K))
-        J = np.matmul(self.sig_xm_train.T, np.divide(self.y_train - prior_mu, self.updated_var))
-        mu_m_pos = prior_mu + J - np.matmul(K, np.linalg.solve(K + self.sig_mm_train, J))
-        return  sig_xm_query, sig_mm_query, sig_mm_pos, mu_m_pos
+    #     K = np.matmul(self.sig_xm_train.T, np.divide(self.sig_xm_train, self.updated_var.reshape(-1, 1)))
+    #     sig_mm_pos = sig_mm_query - K + np.matmul(K, np.linalg.solve(K + sig_mm_query, K))
+    #     J = np.matmul(self.sig_xm_train.T, np.divide(self.y_train - prior_mu, self.updated_var))
+    #     mu_m_pos = prior_mu + J - np.matmul(K, np.linalg.solve(K + self.sig_mm_train, J))
+    #     return  sig_xm_query, sig_mm_query, sig_mm_pos, mu_m_pos
 
-    def predict(self, X, return_std=False):
-        prior_mu = self.y_train.mean()
-        sig_xm_query, sig_mm_query, sig_mm_pos, mu_m_pos = self._perform_sparse_manipulations(X, prior_mu)
+    # def predict(self, X, return_std=False):
+    #     prior_mu = self.y_train.mean()
+    #     sig_xm_query, sig_mm_query, sig_mm_pos, mu_m_pos = self._perform_sparse_manipulations(X, prior_mu)
        
-        mu_X_pos = prior_mu + np.matmul(sig_xm_query, np.linalg.solve(sig_mm_query, mu_m_pos - prior_mu))
+    #     mu_X_pos = prior_mu + np.matmul(sig_xm_query, np.linalg.solve(sig_mm_query, mu_m_pos - prior_mu))
 
-        if return_std:
-            var_X_pos = np.sum(np.multiply(np.matmul(np.linalg.solve(sig_mm_query, np.linalg.solve(sig_mm_query, sig_mm_pos).T), sig_xm_query.T), sig_xm_query.T), 0)
-            return mu_X_pos, np.sqrt(var_X_pos)
-        else:
-            return mu_m_pos
+    #     if return_std:
+    #         var_X_pos = np.sum(np.multiply(np.matmul(np.linalg.solve(sig_mm_query, np.linalg.solve(sig_mm_query, sig_mm_pos).T), sig_xm_query.T), sig_xm_query.T), 0)
+    #         return mu_X_pos, np.sqrt(var_X_pos)
+    #     else:
+    #         return mu_m_pos
 
-    def sample_y(self, X, n_samples):
-        prior_mu = self.y_train.mean()
-        sig_xm_query, sig_mm_query, sig_mm_pos, mu_m_pos = self._perform_sparse_manipulations(X, prior_mu)
+    # def sample_y(self, X, n_samples):
+    #     prior_mu = self.y_train.mean()
+    #     sig_xm_query, sig_mm_query, sig_mm_pos, mu_m_pos = self._perform_sparse_manipulations(X, prior_mu)
 
-        samples_M_pos = np.random.multivariate_normal(mu_m_pos, sig_mm_pos, n_samples).T
-        samples_X_pos = prior_mu + np.matmul(sig_xm_query, np.linalg.solve(sig_mm_query, samples_M_pos - prior_mu))
+    #     samples_M_pos = np.random.multivariate_normal(mu_m_pos, sig_mm_pos, n_samples).T
+    #     samples_X_pos = prior_mu + np.matmul(sig_xm_query, np.linalg.solve(sig_mm_query, samples_M_pos - prior_mu))
         
-        return samples_X_pos
+    #     return samples_X_pos
 
 
 # ---------------------------------------------------------------------------------------------------------------
