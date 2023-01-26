@@ -3,6 +3,9 @@ from numpy.typing import NDArray
 import h5py
 
 
+# -----------------------------------------------------------------------------------------------------------------------------
+
+
 class Hdf5Dataset:
     """hdf5 dataset containing features for MOFs.
     Loads features from HDF5 dataset for passed indices.
@@ -41,3 +44,6 @@ class Hdf5Dataset:
             X = X_[k[ka]][kaa]
             
         return X
+    
+
+# -----------------------------------------------------------------------------------------------------------------------------
