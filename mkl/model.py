@@ -238,7 +238,7 @@ class SparseMKL(SparseGaussianProcess):
         self.model = GaussianProcessRegressor(kernel=self.get_weighted_kernel())  #make sure weights are updated at the end for next model call.
 
 
-# # ---------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------
 
 
 class EnsembleSparseGaussianProcess:
@@ -320,13 +320,4 @@ class EnsembleSparseGaussianProcess:
         return self.y_train.max()
 
 
-# # ---------------------------------------------------------------------------------------------------------------
-# TODO : consider tests for  kernels (quick and only for Tanimoto and only for the actual maths)
-# TODO : need to do a screening on the COF data to make sure it doens't break (even jst doing a fit to random data would be excellent...)
-# TODO : make sure the other models don't also break
-
-
-
-
-# # TODO : write the inducing functions (cluster then return centroids), consider how to do this for PCFP
-## >* the centroids to be the result of performing a clustering on each dataset and selectingn/4 centroids from each, final matrix to be the combination of all 4 centroids
+# ---------------------------------------------------------------------------------------------------------------
