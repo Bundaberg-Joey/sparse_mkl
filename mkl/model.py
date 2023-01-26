@@ -7,8 +7,6 @@ from scipy.stats import norm
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, Kernel
 
-from mkl.kernel import TanimotoKernel, RbfKernel
-
 # ----------------------------------------------------------------------------------------------------------------------
 
 
@@ -202,58 +200,90 @@ class SparseGaussianProcess:
 # # ---------------------------------------------------------------------------------------------------------------
 
 
-# class EnsembleSparseGp(GaussianProcess):
+class EnsembleSparseGaussianProcess:
 
-#     def __init__(self, rbf_model: SparseGaussianProcess, mkl_model: SparseMKL) -> None:
-#         self.rbf_model = rbf_model
-#         self.mkl_model = mkl_model
+    def __init__(self, rbf_model: SparseGaussianProcess, mkl_model: SparseMKL) -> None:
+        self.rbf_model = rbf_model
+        self.mkl_model = mkl_model
 
-#     def fit(self, X_train: List[str], y_train: NDArray[np.float_]) -> None:
-#         # X = hmof-names to use for training
-#         # y = np.array of target values
-#         self.y_train = np.array(y_train)
+    def fit(self, X_train: NDArray[np.int_], y_train: NDArray[np.float_]) -> None:
+        """fit models in ensemble to passed data.
 
-#         self.rbf_model.fit(X, y_train)
-#         self.mkl_model.fit(X, y_train)
+        Parameters
+        ----------
+        X_train : NDArray[np.int_]
+            Indices of features to extract for kernel.
+            
+        y_train : NDArray[np.float_]
+            performance values (not indices) of the passed MOF indices.
+        """
+        self.y_train = np.array(y_train)
 
-#     def predict(self, X: List[str], return_std: bool=False) -> Tuple[NDArray[np.float_], NDArray[np.float_]]:
-#         # X = hmof-names to use for training
-#         def _calc_precision(std):
-#             return 1 / (std ** 2)
+        self.rbf_model.fit(X_train, y_train)
+        self.mkl_model.fit(X_train, y_train)
 
-#         mu_rbf, std_rbf = self.rbf_model.predict(X, return_std=True)
-#         mu_mkl, std_mkl = self.mkl_model.predict(X, return_std=True)
+    def predict(self, X: NDArray[np.int_], return_std: bool=False) -> Tuple[NDArray[np.float_], NDArray[np.float_]]:
+        """Make predictions for passed MOFs
+
+        Parameters
+        ----------
+        X : NDArray[np.int_]
+            Indices of features to extract for kernel.
+            
+        return_std : bool, optional
+            return the std of the model predictions (not calculated if value is False)
+
+        Returns
+        -------
+        Union[Tuple[NDArray, NDArray], NDArray]
+            Either two 1D arrays or a single array depending if `return_std` is specified.
+        """
+        def _calc_precision(std):
+            return 1 / (std ** 2)
+
+        mu_rbf, std_rbf = self.rbf_model.predict(X, return_std=True)
+        mu_mkl, std_mkl = self.mkl_model.predict(X, return_std=True)
         
-#         p1, p2 = _calc_precision(std_rbf), _calc_precision(std_mkl)
-#         p = p1 + p2
+        p1, p2 = _calc_precision(std_rbf), _calc_precision(std_mkl)
+        p = p1 + p2
         
-#         mu = ((p1 * mu_rbf) + (p2 * mu_mkl)) / p
-#         std = 1 / np.sqrt(p)
-#         return mu, std
+        mu = ((p1 * mu_rbf) + (p2 * mu_mkl)) / p
+        
+        if return_std:
+            std = 1 / np.sqrt(p)
+            return mu, std
+        else:
+            return mu
 
-#     def sample_y(self, X: List[str], n_samples: int) -> Union[NDArray[np.float_], NDArray[NDArray[np.float_]]]:
-#         # X = hmof-names to use for training
-#         post_rbf = self.rbf_model.sample_y(X, n_samples)
-#         post_mkl = self.mkl_model.sample_y(X, n_samples)        
-#         return np.hstack((post_rbf, post_mkl))
+    def sample_y(self, X: NDArray[np.int_], n_samples: int) -> Union[NDArray[np.float_], NDArray[NDArray[np.float_]]]:
+        """Sample from posterior of sparse GP.
 
-#     def get_max_y(self) -> np.float_:
-#         return self.y_train.max()
+        Parameters
+        ----------
+        X : NDArray[np.int_]
+            Indices of features to extract for kernel.
+            
+        n_samples : int
+            Number of times to sample each entry in `X` from the posterior.
+
+        Returns
+        -------
+        NDArray
+            posterior samples.
+        """
+        post_rbf = self.rbf_model.sample_y(X, n_samples)
+        post_mkl = self.mkl_model.sample_y(X, n_samples)        
+        return np.hstack((post_rbf, post_mkl))
+
+    def get_max_y(self) -> np.float_:
+        return self.y_train.max()
 
 
 # # ---------------------------------------------------------------------------------------------------------------
+# TODO : 
 
 
 
-
-# # ---------------------------------------------------------------------------------------------------------------
-
-
-# # TODO : figure out how to make it work with the models as a MKL approach (within the kernel itself?)
-
-# # TODO : speak with Tom to confirm that the kernel variance is the white kernel noise + figure out a good way to get this from both single kernel and MKL model (likely just have it as last then extract the final theta from model params instead of kernel indexing)
 
 # # TODO : write the inducing functions (cluster then return centroids), consider how to do this for PCFP
 ## >* the centroids to be the result of performing a clustering on each dataset and selectingn/4 centroids from each, final matrix to be the combination of all 4 centroids
-
-# # TODO : figure out how to make it work together with the script
