@@ -280,7 +280,10 @@ class EnsembleSparseGaussianProcess:
 
 
 # # ---------------------------------------------------------------------------------------------------------------
-# TODO : 
+# TODO : quickly clean up the sparseMKL
+# TODO : consider tests for  kernels (quick and only for Tanimoto and only for the actual maths)
+# TODO : need to do a screening on the COF data to make sure it doens't break (even jst doing a fit to random data would be excellent...)
+# TODO : make sure the other models don't also break
 
 
 
