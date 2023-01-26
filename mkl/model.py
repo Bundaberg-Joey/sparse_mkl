@@ -109,7 +109,7 @@ class SparseGaussianProcess:
 
         Parameters
         ----------
-        X_train : NDArray[np.int_]
+        X : NDArray[np.int_]
             Indices of features to extract for kernel.
             
         return_std : bool, optional
@@ -131,14 +131,29 @@ class SparseGaussianProcess:
         else:
             return mu_m_pos
 
-    # def sample_y(self, X, n_samples):
-    #     prior_mu = self.y_train.mean()
-    #     sig_xm_query, sig_mm_query, sig_mm_pos, mu_m_pos = self._perform_sparse_manipulations(X, prior_mu)
+    def sample_y(self, X: NDArray[np.int_], n_samples: int) -> NDArray:
+        """Sample from posterior of sparse GP.
 
-    #     samples_M_pos = np.random.multivariate_normal(mu_m_pos, sig_mm_pos, n_samples).T
-    #     samples_X_pos = prior_mu + np.matmul(sig_xm_query, np.linalg.solve(sig_mm_query, samples_M_pos - prior_mu))
+        Parameters
+        ----------
+        X : NDArray[np.int_]
+            Indices of features to extract for kernel.
+            
+        n_samples : int
+            Number of times to sample each entry in `X` from the posterior.
+
+        Returns
+        -------
+        NDArray
+            posterior samples.
+        """
+        prior_mu = self.y_train.mean()
+        sig_xm_query, sig_mm_query, sig_mm_pos, mu_m_pos = self._perform_sparse_manipulations(X, prior_mu)
+
+        samples_M_pos = np.random.multivariate_normal(mu_m_pos, sig_mm_pos, n_samples).T
+        samples_X_pos = prior_mu + np.matmul(sig_xm_query, np.linalg.solve(sig_mm_query, samples_M_pos - prior_mu))
         
-    #     return samples_X_pos
+        return samples_X_pos
 
 
 # ---------------------------------------------------------------------------------------------------------------
