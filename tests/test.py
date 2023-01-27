@@ -221,13 +221,41 @@ def test_SparseGaussianProcess_output_sizes_regular():
             posterior = model.sample_y(X[:n], n_samples=m)
             assert posterior.shape == (n, m)
         
-             
+
 def test_SparseGaussianProcess_output_sizes_indexed():
     #confirm works with indeexed kernels
     X, y = make_regression(n_samples=100, n_features=5, random_state=1)
     X_range = np.arange(len(X)).reshape(-1, 1)
     
     kernel = RbfKernelIdx(X, length_scale=np.ones(X.shape[1])) + WhiteKernelIdx(X)
+    internal_model = GaussianProcessRegressor(kernel=kernel, normalize_y=True)
+    model = SparseGaussianProcess(model=internal_model, X_inducing=X_range[:10])
+    
+    model.fit(X_range[:20], y[:20])
+    
+    for n in (50, 80):
+        mu, std = model.predict(X_range[:n], return_std=True)
+        
+        assert mu.shape == (n, )
+        assert std.shape == (n, )
+        assert not np.isnan(mu).any()
+        assert not np.isnan(std).any()
+        
+        for m in (1, 2):
+            posterior = model.sample_y(X_range[:n], n_samples=m)
+            assert posterior.shape == (n, m)
+            assert not np.isnan(posterior).any()
+            assert not np.isnan(posterior).any()
+            
+            
+def test_SparseGaussianProcess_TanimotoIdx():
+    #confirm works with indeexed kernels
+    
+    X = np.random.randint(0, 2, size=(100, 5), dtype=int)
+    y = np.random.normal(140, 10, len(X))    
+    X_range = np.arange(len(X)).reshape(-1, 1)
+    
+    kernel = TanimotoKernelIdx(X) + WhiteKernelIdx(X)
     internal_model = GaussianProcessRegressor(kernel=kernel, normalize_y=True)
     model = SparseGaussianProcess(model=internal_model, X_inducing=X_range[:10])
     
