@@ -12,4 +12,4 @@ jobs:
      - name: Build Docker image 
        run: docker build -t sparse_mkl .
      - name: Run tests inside the container
-       run: docker run -v $PWD:/app sparse_mkl python3 -m pytest tests/test.py
+       run: docker run -v $PWD:/app sparse_mkl python3 -m pytest tests/test.py --runslow
