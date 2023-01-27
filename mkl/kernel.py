@@ -23,7 +23,7 @@ class TanimotoKernelIdx(Kernel):
         self.dataset = dataset
         self.n_jobs = int(n_jobs)
     
-    def __call__(self, X: NDArray[np.int_], Y: Optional[NDArray[np._int]]=None, eval_gradient: bool=False):
+    def __call__(self, X: NDArray[np.int_], Y: Optional[NDArray[np.int_]]=None, eval_gradient: bool=False):
         Xa = self.dataset[np.ravel(X)]
         
         if Y is None:
@@ -81,7 +81,7 @@ class RbfKernelIdx(RBF):
         self.dataset = dataset
         super().__init__(length_scale=length_scale)
 
-    def __call__(self, X: NDArray[np.int_], Y: Optional[NDArray[np._int]]=None, eval_gradient: bool=False):
+    def __call__(self, X: NDArray[np.int_], Y: Optional[NDArray[np.int_]]=None, eval_gradient: bool=False):
         Xa = self.dataset[np.ravel(X)]
 
         if Y is None:
