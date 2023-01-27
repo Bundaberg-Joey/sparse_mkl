@@ -1,12 +1,16 @@
+from time import perf_counter
+
 import pytest
 import numpy as np
 
+from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, WhiteKernel
 from sklearn.datasets import make_regression
 
 from mkl.acquisition import GreedyNRanking
 from mkl.data import Hdf5Dataset
 from mkl.kernel import RbfKernelIdx, WhiteKernelIdx, TanimotoKernelIdx
+from mkl.model import SparseGaussianProcess
 
 
 # -----------------------------------------------------------------------------------------------------------------------------
@@ -195,3 +199,70 @@ def test_DynamicTanimotoKernel___call__(x, y, eval_gradient):
     np.testing.assert_allclose(covar, ref)
 
 # -----------------------------------------------------------------------------------------------------------------------------
+
+
+def test_SparseGaussianProcess_output_sizes_regular():
+    #confirm works wither "regular" non indexed kernels
+    X, y = make_regression(n_samples=100, n_features=5, random_state=1)
+    
+    kernel = RBF(length_scale=np.ones(X.shape[1])) + WhiteKernel()
+    internal_model = GaussianProcessRegressor(kernel=kernel, normalize_y=True)
+    model = SparseGaussianProcess(model=internal_model, X_inducing=X[:10])
+    
+    model.fit(X[:20], y[:20])
+    
+    for n in (50, 80):
+        mu, std = model.predict(X[:n], return_std=True)
+        
+        assert mu.shape == (n, )
+        assert std.shape == (n, )
+        
+        for m in (1, 2):
+            posterior = model.sample_y(X[:n], n_samples=m)
+            assert posterior.shape == (n, m)
+        
+             
+def test_SparseGaussianProcess_output_sizes_indexed():
+    #confirm works with indeexed kernels
+    X, y = make_regression(n_samples=100, n_features=5, random_state=1)
+    X_range = np.arange(len(X)).reshape(-1, 1)
+    
+    kernel = RbfKernelIdx(X, length_scale=np.ones(X.shape[1])) + WhiteKernelIdx(X)
+    internal_model = GaussianProcessRegressor(kernel=kernel, normalize_y=True)
+    model = SparseGaussianProcess(model=internal_model, X_inducing=X_range[:10])
+    
+    model.fit(X_range[:20], y[:20])
+    
+    for n in (50, 80):
+        mu, std = model.predict(X_range[:n], return_std=True)
+        
+        assert mu.shape == (n, )
+        assert std.shape == (n, )
+        assert not np.isnan(mu).any()
+        assert not np.isnan(std).any()
+        
+        for m in (1, 2):
+            posterior = model.sample_y(X_range[:n], n_samples=m)
+            assert posterior.shape == (n, m)
+            assert not np.isnan(posterior).any()
+            assert not np.isnan(posterior).any()
+
+
+@pytest.mark.slow
+def test_SparseGaussianProcess_runs_quickly_on_large():
+    X = np.random.randn(100_000, 5)
+    y = np.random.randn(100_000)
+    X_ind = X[-100:]
+
+    kernel = RBF(length_scale=np.ones(5)) + WhiteKernel()
+    internal_model = GaussianProcessRegressor(kernel=kernel, normalize_y=True)
+    model = SparseGaussianProcess(internal_model, X_inducing=X_ind)
+
+    a = perf_counter()
+    # about 5-8 seconds to fit to 1_000 and sample for 100_000 and inducing matrix of 100
+    model.fit(X[:1000], y[:1000])
+    post = model.sample_y(X, n_samples=100)
+    b = perf_counter()
+
+    time_taken = b - a
+    assert time_taken <= 10
