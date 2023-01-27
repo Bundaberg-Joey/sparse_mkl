@@ -19,14 +19,18 @@ class TanimotoKernelIdx(Kernel):
     Allows for easier compatability with other MKL models.
     """
     
-    def __init__(self, n_jobs: int=1) -> None:
+    def __init__(self, dataset:Union[Hdf5Dataset, NDArray], n_jobs: int=1) -> None:
+        self.dataset = dataset
         self.n_jobs = int(n_jobs)
     
     def __call__(self, X: NDArray[np.int_], Y: Optional[NDArray[np._int]]=None, eval_gradient: bool=False):
-        if not Y:
-            K = self._calc_sim(X, X, self.n_jobs)
+        Xa = self.dataset[X]
+        
+        if Y is None:
+            K = self._calc_sim(Xa, Xa, self.n_jobs)
         else:
-            K = self._calc_sim(X, Y, self.n_jobs)
+            Xb = self.dataset[Y]
+            K = self._calc_sim(Xa, Xb, self.n_jobs)
             
         if eval_gradient:
             return K, np.zeros(shape=(len(X), len(X), 0))  # fixed params
