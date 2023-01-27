@@ -131,7 +131,7 @@ class SparseGaussianProcess:
             var_X_pos = np.sum(np.multiply(np.matmul(np.linalg.solve(sig_mm_query, np.linalg.solve(sig_mm_query, sig_mm_pos).T), sig_xm_query.T), sig_xm_query.T), 0)
             return mu_X_pos, np.sqrt(var_X_pos)
         else:
-            return mu_m_pos
+            return mu_X_pos
 
     def sample_y(self, X: NDArray[np.int_], n_samples: int) -> NDArray:
         """Sample from posterior of sparse GP.
