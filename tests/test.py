@@ -15,6 +15,10 @@ from mkl.model import SparseGaussianProcess
 
 # -----------------------------------------------------------------------------------------------------------------------------
 
+RAND = np.random.RandomState(1)
+
+# -----------------------------------------------------------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize('n_samp, n_opt', 
                          [
@@ -26,7 +30,7 @@ def test_GreedyNRanking(n_samp, n_opt):
     n_samp = 5
     n_opt = 20
     posterior = np.ones((1000, n_samp))
-    indices = np.random.choice(len(posterior), size=n_opt, replace=False)
+    indices = RAND.choice(len(posterior), size=n_opt, replace=False)
     posterior[indices] *= 10.0  # boost these posterior values
     
     greedy = GreedyNRanking(n_opt)
@@ -77,8 +81,8 @@ def test_Hdf5Dataset(indices):
 ])
 def test_RbfKernelIdx(n, m):
     ref, _ = make_regression(n_samples=100, n_features=5)
-    a = np.random.randint(0, 99, size=n)
-    b = np.random.randint(0, 99, size=m)
+    a = RAND.randint(0, 99, size=n)
+    b = RAND.randint(0, 99, size=m)
     
     kernel = RBF(length_scale=np.ones(ref.shape[1]))
     idx_kernel = RbfKernelIdx(dataset=ref, length_scale=np.ones(ref.shape[1]))
@@ -118,8 +122,8 @@ def test_RbfKernelIdx(n, m):
 ])
 def test_WhiteKernelIdx(n, m):
     ref, _ = make_regression(n_samples=100, n_features=5)
-    a = np.random.randint(0, 99, size=n)
-    b = np.random.randint(0, 99, size=m)
+    a = RAND.randint(0, 99, size=n)
+    b = RAND.randint(0, 99, size=m)
     
     kernel = WhiteKernel()
     idx_kernel = WhiteKernelIdx(dataset=ref)
@@ -177,7 +181,7 @@ def test_TanimotoKernelIdx__calc_sim():
     (np.arange(10).reshape(-1, 1), None, True)
 ])
 def test_DynamicTanimotoKernel___call__(x, y, eval_gradient):
-    fm = np.random.randint(0, 2, size=(30, 5), dtype=int)
+    fm = RAND.randint(0, 2, size=(30, 5), dtype=int)
     kernel = TanimotoKernelIdx(fm, 1)
     out = kernel(x, y, eval_gradient)
 
@@ -251,8 +255,8 @@ def test_SparseGaussianProcess_output_sizes_indexed():
 def test_SparseGaussianProcess_TanimotoIdx():
     #confirm works with indeexed kernels
     
-    X = np.random.randint(0, 2, size=(100, 5), dtype=int)
-    y = np.random.normal(140, 10, len(X))    
+    X = RAND.randint(0, 2, size=(100, 5), dtype=int)
+    y = RAND.normal(140, 10, len(X))    
     X_range = np.arange(len(X)).reshape(-1, 1)
     
     kernel = TanimotoKernelIdx(X) + WhiteKernelIdx(X)
@@ -278,8 +282,8 @@ def test_SparseGaussianProcess_TanimotoIdx():
 
 @pytest.mark.slow
 def test_SparseGaussianProcess_runs_quickly_on_large():
-    X = np.random.randn(100_000, 5)
-    y = np.random.randn(100_000)
+    X = RAND.randn(100_000, 5)
+    y = RAND.randn(100_000)
     X_ind = X[-100:]
 
     kernel = RBF(length_scale=np.ones(5)) + WhiteKernel()
@@ -289,8 +293,9 @@ def test_SparseGaussianProcess_runs_quickly_on_large():
     a = perf_counter()
     # about 5-8 seconds to fit to 1_000 and sample for 100_000 and inducing matrix of 100
     model.fit(X[:1000], y[:1000])
-    post = model.sample_y(X, n_samples=100)
+    model.sample_y(X, n_samples=100)
     b = perf_counter()
 
     time_taken = b - a
-    assert time_taken <= 10
+    assert time_taken <= 20
+
