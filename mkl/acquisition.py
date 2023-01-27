@@ -34,6 +34,7 @@ class GreedyNRanking:
         -------
         NDArray[np.int_]
             counts for the number of times each entry in posterior was in the top `n_opt`
+            Shape (len(X), )
         """
         alpha = np.zeros(len(posterior))
         top_n_ind = np.argpartition(posterior.T, -self.n_opt).T[-self.n_opt:]
