@@ -94,7 +94,7 @@ class SparseGaussianProcess:
             transformed matrices.
         """
 
-        k_xm_query = self.model.kernel(X, self.X_inducing)
+        k_xm_query = self.model.kernel_(X, self.X_inducing)
         k_mm_query = self.k_mm
 
         sig_xm_query = self.kernel_var * k_xm_query
