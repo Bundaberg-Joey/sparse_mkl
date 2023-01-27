@@ -10,3 +10,5 @@ RUN conda env update -n base --file environment.yml \
     && conda clean -afy
 
 WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 
