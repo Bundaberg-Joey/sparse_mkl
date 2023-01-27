@@ -32,6 +32,7 @@ class SparseGaussianProcess:
         self.model = model
         self.X_inducing = np.array(X_inducing)  # indices of MOFs in inducing array 
         self.jitter = float(jitter)
+        self._kmm = None
 
     def fit(self, X_train: NDArray[np.int_], y_train: NDArray[np.float_]) -> None:
         """Fit model to passed data.
@@ -51,9 +52,12 @@ class SparseGaussianProcess:
         self.kernel_var = self._get_kernel_variance()
 
         k_xm = self.model.kernel_(X_train, self.X_inducing)
-        k_mm = self.model.kernel_(self.X_inducing, self.X_inducing)
+        
+        if self._kmm is None:
+            self.k_mm = self.model.kernel_(self.X_inducing, self.X_inducing)
+            
         self.sig_xm_train = self.kernel_var * k_xm
-        self.sig_mm_train = self.kernel_var * k_mm + np.identity(n=len(self.X_inducing)) * self.kernel_var * self.jitter
+        self.sig_mm_train = self.kernel_var * self.k_mm + np.identity(n=len(self.X_inducing)) * self.kernel_var * self.jitter
         self.updated_var = self.kernel_var + prior_var - np.sum(np.multiply(np.linalg.solve(self.sig_mm_train, self.sig_xm_train.T), self.sig_xm_train.T), 0)
         
     def _get_kernel_variance(self) -> float:
@@ -91,7 +95,7 @@ class SparseGaussianProcess:
         """
 
         k_xm_query = self.model.kernel(X, self.X_inducing)
-        k_mm_query = self.model.kernel(self.X_inducing, self.X_inducing)
+        k_mm_query = self.k_mm
 
         sig_xm_query = self.kernel_var * k_xm_query
         sig_mm_query = self.kernel_var * k_mm_query + np.identity(len(self.X_inducing)) * self.jitter * self.kernel_var
