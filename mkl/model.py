@@ -50,12 +50,12 @@ class SparseGaussianProcess:
 
         prior_var = y_train.std() ** 2
         self.kernel_var = self._get_kernel_variance()
-
-        k_xm = self.model.kernel_(X_train, self.X_inducing)
         
-        if self._kmm is None:
-            self.k_mm = self.model.kernel_(self.X_inducing, self.X_inducing)
-            
+        self.X_inducing = np.vstack((self.X_inducing, X_train))  # update with training points
+        
+        k_xm = self.model.kernel_(X_train, self.X_inducing)
+        self.k_mm = self.model.kernel_(self.X_inducing, self.X_inducing)
+                                
         self.sig_xm_train = self.kernel_var * k_xm
         self.sig_mm_train = self.kernel_var * self.k_mm + np.identity(n=len(self.X_inducing)) * self.kernel_var * self.jitter
         self.updated_var = self.kernel_var + prior_var - np.sum(np.multiply(np.linalg.solve(self.sig_mm_train, self.sig_xm_train.T), self.sig_xm_train.T), 0)
