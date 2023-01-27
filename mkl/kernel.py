@@ -24,12 +24,12 @@ class TanimotoKernelIdx(Kernel):
         self.n_jobs = int(n_jobs)
     
     def __call__(self, X: NDArray[np.int_], Y: Optional[NDArray[np._int]]=None, eval_gradient: bool=False):
-        Xa = self.dataset[X]
+        Xa = self.dataset[np.ravel(X)]
         
         if Y is None:
             K = self._calc_sim(Xa, Xa, self.n_jobs)
         else:
-            Xb = self.dataset[Y]
+            Xb = self.dataset[np.ravel(Y)]
             K = self._calc_sim(Xa, Xb, self.n_jobs)
             
         if eval_gradient:
@@ -82,16 +82,16 @@ class RbfKernelIdx(RBF):
         super().__init__(length_scale=length_scale)
 
     def __call__(self, X: NDArray[np.int_], Y: Optional[NDArray[np._int]]=None, eval_gradient: bool=False):
-        Xa = self.dataset[X]
+        Xa = self.dataset[np.ravel(X)]
 
         if Y is None:
             return super().__call__(Xa, Y, eval_gradient)
         else:
-            Xb = self.dataset[Y]
+            Xb = self.dataset[np.ravel(Y)]
             return super().__call__(Xa, Xb, eval_gradient)
 
     def diag(self, X: NDArray):
-        Xa = self.dataset[X]
+        Xa = self.dataset[np.ravel(X)]
         return super().diag(Xa)
 
 
@@ -109,16 +109,16 @@ class WhiteKernelIdx(WhiteKernel):
         super().__init__(noise_level=noise_level)
         
     def __call__(self, X, Y=None, eval_gradient=False):
-        X = self.dataset[X]
+        Xa = self.dataset[np.ravel(X)]
         
         if Y is None:
-            return super().__call__(X, Y, eval_gradient)
+            return super().__call__(Xa, Y, eval_gradient)
         else:
-            Y = X if Y is None else self.dataset[Y]
-            return super().__call__(X, Y, eval_gradient)
+            Xb = self.dataset[np.ravel(Y)]
+            return super().__call__(Xa, Xb, eval_gradient)
     
     def diag(self, X):
-        X = self.dataset[X]
+        X = self.dataset[np.ravel(X)]
         return super().diag(X)
     
     
