@@ -12,78 +12,31 @@ class Prospector:
         self.X = X
         self.n, self.d = X.shape
         self.X_cls = X_cls
-        self.update_counter = 0
-        self.updates_per_big_fit = 10
-        self.ntop=100 
-        self.nmax=400
         self.lam=1e-6
-
-    def fit(self, tested, ytested):
-        """
-        Fits hyperparameters and inducing points.
-        Fit a GPy dense model to get hyperparameters.
-        Take subsample for tested data for fitting.
-
-        :param Y: np.array(), experimentally determined values
-        :param STATUS: np.array(), keeps track of which materials have been assessed / what experiments conducted
-        """
-        X = self.X
-        # each 10 fits we update the hyperparameters, otherwise we just update the data which is a lot faster
-        if np.mod(self.update_counter, self.updates_per_big_fit) == 0:
-            print('fitting hyperparameters')
-            # how many training points are there
-            ntested = len(tested)
-            # if more than nmax we will subsample and use the subsample to fit hyperparametesr
-            if ntested <= self.nmax:
-                train = tested
-                ytrain = ytested
-            else:
-                # subsample if above certain number of points to keep "fitting" fast
-                top_ind = np.argsort(ytested)[-self.ntop:]  # indices of top y sampled so far
-                rand_ind = np.random.choice([i for i in range(ntested) if i not in top_ind], replace=False, size=ntested-self.ntop)  # other indices
-                chosen = np.hstack((top_ind, rand_ind))
-                ytrain = np.array([ytested[i] for i in chosen])
-                train = [tested[i] for i in chosen]
-                
-            # use GPy code to fit hyperparameters to minimize NLL on train data
-            mfy = GPy.mappings.Constant(input_dim=self.d, output_dim=1)  # fit dense GPy model to this data
-            ky = GPy.kern.RBF(self.d, ARD=True, lengthscale=np.ones(self.d))
-            self.internal_model = GPy.models.GPRegression(X[train], ytrain.reshape(-1, 1), kernel=ky, mean_function=mfy)
-            self.internal_model.optimize('bfgs')
-
-            self.prior_mu = float(self.internal_model.constmap.C)
-            self.kernel_var = float(self.internal_model.kern.variance)
-            self.noise_var = float(self.internal_model.Gaussian_noise.variance)
-
-            
-            # selecting inducing points for sparse inference
-            print('selecting inducing points')
-            # matrix of inducing points
-            self.M = np.vstack((X[train], self.X_cls))
-            # dragons...
-            # email james.l.hook@gmail.com if this bit goes wrong!
-            print('fitting sparse model')
-
-            self.sig_xm = self.internal_model.kern.K(X, self.M)
-            self.sig_mm = self.internal_model.kern.K(self.M, self.M) + (np.identity(self.M.shape[0]) * self.lam * self.kernel_var) 
-            self.updated_var = self.kernel_var + self.noise_var - np.sum(np.multiply(np.linalg.solve(self.sig_mm, self.sig_xm.T), self.sig_xm.T),0)
         
+    def update_parameters(self, train, ytrain):
+        # matrix of inducing points
+        self.M = np.vstack((self.X[train], self.X_cls))
+
+        # use GPy code to fit hyperparameters to minimize NLL on train data
+        mfy = GPy.mappings.Constant(input_dim=self.d, output_dim=1)  # fit dense GPy model to this data
+        ky = GPy.kern.RBF(self.d, ARD=True, lengthscale=np.ones(self.d))
+        self.internal_model = GPy.models.GPRegression(self.X[train], ytrain.reshape(-1, 1), kernel=ky, mean_function=mfy)
+        self.internal_model.optimize('bfgs')
+
+        self.prior_mu = float(self.internal_model.constmap.C)
+        self.kernel_var = float(self.internal_model.kern.variance)
+        self.noise_var = float(self.internal_model.Gaussian_noise.variance)
+
+        self.sig_xm = self.internal_model.kern.K(self.X, self.M)
+        self.sig_mm = self.internal_model.kern.K(self.M, self.M) + (np.identity(self.M.shape[0]) * self.lam * self.kernel_var) 
+        self.updated_var = self.kernel_var + self.noise_var - np.sum(np.multiply(np.linalg.solve(self.sig_mm, self.sig_xm.T), self.sig_xm.T),0)
+    
+    def update_data(self, tested, ytested):
         K = np.matmul(self.sig_xm[tested].T, np.divide(self.sig_xm[tested], self.updated_var[tested].reshape(-1, 1)))
         self.SIG_MM_pos = self.sig_mm - K + np.matmul(K, np.linalg.solve(K + self.sig_mm, K))
         J = np.matmul(self.sig_xm[tested].T, np.divide(ytested - self.prior_mu, self.updated_var[tested]))
         self.mu_M_pos = self.prior_mu + J - np.matmul(K, np.linalg.solve(K + self.sig_mm, J))
-                
-        self.update_counter += 1
-        """
-        key attributes updated by fit
-
-        self.SIG_XM : prior covarience matrix between data and inducing points
-        self.SIG_MM : prior covarience matrix at inducing points
-
-        self.SIG_MM_pos : posterior covarience matrix at inducing points
-        self.mu_M_pos : posterior mean at inducing points
-
-        """
 
     def predict(self):
         """
@@ -123,6 +76,7 @@ class Ensemble:
         self.nmax=400
     
     def fit(self, X_train, y_train):
+        # same update logic as single sparse model but allows for ensemble to keep track / apply methods independently
         
         if self.update_counter % self.updates_per_big_fit == 0:
             

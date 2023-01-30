@@ -39,7 +39,10 @@ for itr in range(50, 100):
     untested = [i for i in range(len(X)) if i not in tested]
     ytested = y[tested].reshape(-1)
 
-    model.fit(tested, ytested)
+    if itr % 10 == 0:
+        model.update_parameters(tested, ytested)
+    model.update_data(tested, ytested)
+
     posterior = model.samples(nsamples=1)
     _, _  = model.predict()
     alpha = acqu.score_points(posterior)
