@@ -23,6 +23,10 @@ untested = [i for i in range(len(X)) if i not in tested]
 y_tested = y[tested].reshape(-1)
 
 model = Prospector(X=X)
+#model.nmax = 50
+#model.ntop = 10
+
+
 acqu = GreedyNRanking()
 
 for itr in range(50, 100):

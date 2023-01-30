@@ -148,10 +148,7 @@ class Prospector:
         self.updates_per_big_fit = 10
         self.y_max = None
         self.ntop=100 
-        self.nrecent=100 
         self.nmax=400
-        self.ntopmu=100 
-        self.ntopvar=100 
         self.nkmeans=300
         self.nkeamnsdata=5000
         self.lam=1e-6
@@ -173,21 +170,17 @@ class Prospector:
             # how many training points are there
             ntested = len(tested)
             # if more than nmax we will subsample and use the subsample to fit hyperparametesr
-            if ntested > self.nmax:
-                # subsample is uniion of 100 best points, 100 most recent points and then random points
-                top = list(np.argsort(ytested)[-self.ntop:])
-                recent = list(range(ntested - self.nrecent, ntested))
-                topandrecent = list(set(top + recent))
-                rand = list(
-                    np.random.choice([i for i in range(ntested) if i not in topandrecent], self.nmax - len(topandrecent),
-                                     False))
-                testedtrain = topandrecent + rand
-                ytrain = ytested[testedtrain]
-                train = [tested[i] for i in testedtrain]
-            else:
+            if ntested <= self.nmax:
                 train = tested
                 ytrain = ytested
-
+            else:
+                # subsample if above certain number of points to keep "fitting" fast
+                top_ind = np.argsort(ytested)[-self.ntop:]  # indices of top y sampled so far
+                rand_ind = np.random.choice([i for i in range(ntested) if i not in top_ind], replace=False, size=ntested-self.ntop)  # other indices
+                chosen = np.hstack((top_ind, rand_ind))
+                ytrain = np.array([ytested[i] for i in chosen])
+                train = [tested[i] for i in chosen]
+                
             # use GPy code to fit hyperparameters to minimize NLL on train data
             mfy = GPy.mappings.Constant(input_dim=self.d, output_dim=1)  # fit dense GPy model to this data
             ky = GPy.kern.RBF(self.d, ARD=True, lengthscale=np.ones(self.d))
