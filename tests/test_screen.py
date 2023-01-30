@@ -45,7 +45,6 @@ def test_sparse_gp_screening():
         y_train = y[X_train_ind]
 
         if itr % 10 == 0:
-            print('big fit')
             model.update_parameters(X_train_ind, y_train)
         model.update_data(X_train_ind, y_train)
 
