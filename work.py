@@ -196,7 +196,6 @@ class Prospector:
             # strip out fitted hyperparameters from GPy model, because cant do high(ish) dim sparse inference
             self.mu = self.GP.flattened_parameters[0]
             self.a = self.GP.flattened_parameters[1]
-            self.l = self.GP.flattened_parameters[2]
             self.b = self.GP.flattened_parameters[3]
             # selecting inducing points for sparse inference
             print('selecting inducing points')
@@ -210,11 +209,9 @@ class Prospector:
             nystrom = topmu + topvar + train
             # also get some inducing points spread throughout domain by using kmeans
             # kmeans is very slow on full dataset so choose random subset
-            # also scale using length scales l so that kmeans uses approproate distance measure
-            kms = KMeans(n_clusters=self.nkmeans, max_iter=5).fit(
-                np.divide(X[list(np.random.choice(untested, self.nkeamnsdata))], self.l))
+            kms = KMeans(n_clusters=self.nkmeans, max_iter=5).fit(X[list(np.random.choice(untested, self.nkeamnsdata))])
             # matrix of inducing points
-            self.M = np.vstack((X[nystrom], np.multiply(kms.cluster_centers_, self.l)))
+            self.M = np.vstack((X[nystrom], kms.cluster_centers_))
             # dragons...
             # email james.l.hook@gmail.com if this bit goes wrong!
             print('fitting sparse model')
