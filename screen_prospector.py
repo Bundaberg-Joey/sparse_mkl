@@ -22,11 +22,16 @@ tested = list(RAND.choice(len(X), size=50))
 untested = [i for i in range(len(X)) if i not in tested]
 y_tested = y[tested].reshape(-1)
 
-model = Prospector(X=X)
-#model.nmax = 50
-#model.ntop = 10
+
+# ----------------------------------------------------
+kms = KMeans(n_clusters=300, max_iter=5)
+kms.fit(X)  # or subsample to X[:5000] as original model to allow faster fitting but if doing externally can probably do for full dataset
+X_cls = kms.cluster_centers_
+
+# ----------------------------------------------------
 
 
+model = Prospector(X=X, X_cls=X_cls)
 acqu = GreedyNRanking()
 
 for itr in range(50, 100):
@@ -34,8 +39,9 @@ for itr in range(50, 100):
     untested = [i for i in range(len(X)) if i not in tested]
     ytested = y[tested].reshape(-1)
 
-    model.fit(tested, untested, ytested)
+    model.fit(tested, ytested)
     posterior = model.samples(nsamples=1)
+    _, _  = model.predict()
     alpha = acqu.score_points(posterior)
     alpha_ranked = np.argsort(alpha)[::-1]
     to_sample = [i for i in alpha_ranked if i not in tested][0]

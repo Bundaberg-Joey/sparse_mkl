@@ -140,20 +140,18 @@ from sklearn.metrics import euclidean_distances
 
 class Prospector:
 
-    def __init__(self, X):
+    def __init__(self, X, X_cls):
         """ Initializes by storing all feature values """
         self.X = X
         self.n, self.d = X.shape
+        self.X_cls = X_cls
         self.update_counter = 0
         self.updates_per_big_fit = 10
-        self.y_max = None
         self.ntop=100 
         self.nmax=400
-        self.nkmeans=300
-        self.nkeamnsdata=5000
         self.lam=1e-6
 
-    def fit(self, tested, untested, ytested):
+    def fit(self, tested, ytested):
         """
         Fits hyperparameters and inducing points.
         Fit a GPy dense model to get hyperparameters.
@@ -163,7 +161,6 @@ class Prospector:
         :param STATUS: np.array(), keeps track of which materials have been assessed / what experiments conducted
         """
         X = self.X
-        self.y_max = np.max(ytested)
         # each 10 fits we update the hyperparameters, otherwise we just update the data which is a lot faster
         if np.mod(self.update_counter, self.updates_per_big_fit) == 0:
             print('fitting hyperparameters')
@@ -194,11 +191,8 @@ class Prospector:
             
             # selecting inducing points for sparse inference
             print('selecting inducing points')
-            # also get some inducing points spread throughout domain by using kmeans
-            # kmeans is very slow on full dataset so choose random subset
-            kms = KMeans(n_clusters=self.nkmeans, max_iter=5).fit(X[list(np.random.choice(untested, self.nkeamnsdata))])
             # matrix of inducing points
-            self.M = np.vstack((X[train], kms.cluster_centers_))
+            self.M = np.vstack((X[train], self.X_cls))
             # dragons...
             # email james.l.hook@gmail.com if this bit goes wrong!
             print('fitting sparse model')
