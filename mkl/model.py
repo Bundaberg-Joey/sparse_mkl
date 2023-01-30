@@ -1,3 +1,4 @@
+from typing import Tuple
 import numpy as np
 from numpy.typing import NDArray
 import GPy
@@ -43,7 +44,13 @@ class DenseRBFModel:
 class SparseGaussianProcess:
 
     def __init__(self, dense_model: DenseRBFModel):
-        """ Initializes by storing all feature values """
+        """
+        Parameters
+        ----------
+        dense_model : DenseRBFModel
+            A dense model whih performs fit and prediction to all of pssed data.
+            Used to estimate various hyperparameters which are extracted and used by sparse model.
+        """
         self.dense_model = dense_model
         self.lam=1e-6
         
@@ -94,23 +101,30 @@ class SparseGaussianProcess:
         J = np.matmul(self.sig_xm[X_train].T, np.divide(y_train - self.prior_mu, self.updated_var[X_train]))
         self.mu_M_pos = self.prior_mu + J - np.matmul(K, np.linalg.solve(K + self.sig_mm, J))
 
-    def predict(self):
-        """
-        Get a prediction on full dataset
-        just as in MA50263
+    def predict(self) -> Tuple[NDArray[np.float_], NDArray[np.float_]]:
+        """Returns a prediction for the full dataset held within the dense model.
 
-        :return: mu_X_pos, var_X_pos:
+        Returns
+        -------
+        Tuple[NDArray[np.float_], NDArray[np.float_]]
+            Returns the predicted mean and standard deviation for the entire dataset.
         """
         mu_X_pos = self.prior_mu + np.matmul(self.sig_xm, np.linalg.solve(self.sig_mm, self.mu_M_pos - self.prior_mu))
         var_X_pos = np.sum(np.multiply(np.matmul(np.linalg.solve(self.sig_mm,np.linalg.solve(self.sig_mm,self.SIG_MM_pos).T), self.sig_xm.T), self.sig_xm.T), 0)
         return mu_X_pos, np.sqrt(var_X_pos)
 
-    def samples(self, n_samples=1):
-        """
-        sparse sampling method. Samples on inducing points and then uses conditional mean given sample values on full dataset
-        :param n_samples: int, Number of samples to draw from the posterior distribution
+    def sample_y(self, n_samples: int=1) -> NDArray[NDArray[np.float_]]:
+        """Samples on inducing points and then uses conditional mean given sample values on full dataset.
 
-        :return: samples_X_pos: matrix whose cols are independent samples of the posterior over the full dataset X
+        Parameters
+        ----------
+        n_samples : int, optional
+            Number of samples to draw from the posterior distribution for each entry in the database `X`
+
+        Returns
+        -------
+        NDArray[NDArray[np.float_]]
+            matrix whose columns are independent samples of the posterior over the full database `X`.
         """
         samples_M_pos = np.random.multivariate_normal(self.mu_M_pos, self.SIG_MM_pos, n_samples).T
         samples_X_pos = self.prior_mu + np.matmul(self.sig_xm, np.linalg.solve(self.sig_mm, samples_M_pos - self.prior_mu))

@@ -48,7 +48,7 @@ def test_sparse_gp_screening():
             model.update_parameters(X_train_ind, y_train)
         model.update_data(X_train_ind, y_train)
 
-        posterior = model.samples(n_samples=1)
+        posterior = model.sample_y(n_samples=1)
         _, _  = model.predict()
         alpha = acqu.score_points(posterior)
         alpha_ranked = np.argsort(alpha)[::-1]
