@@ -4,9 +4,7 @@ import GPy
 
 
 # ------------------------------------------------------------------------------------------------------------------------------------
-
-
-class Prospector:
+class SparseGaussianProcess:
 
     def __init__(self, X, X_cls):
         """ Initializes by storing all feature values """

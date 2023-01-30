@@ -3,7 +3,7 @@ from sklearn.preprocessing import scale
 from sklearn.cluster import KMeans
 import numpy as np
 
-from mkl.model import Prospector
+from mkl.model import SparseGaussianProcess
 from mkl.acquisition import GreedyNRanking
 
 
@@ -31,7 +31,7 @@ X_cls = kms.cluster_centers_
 # ----------------------------------------------------
 
 
-model = Prospector(X=X, X_cls=X_cls)
+model = SparseGaussianProcess(X=X, X_cls=X_cls)
 acqu = GreedyNRanking()
 
 for itr in range(50, 100):
