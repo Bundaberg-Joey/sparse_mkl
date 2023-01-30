@@ -191,16 +191,18 @@ class Prospector:
             # use GPy code to fit hyperparameters to minimize NLL on train data
             mfy = GPy.mappings.Constant(input_dim=self.d, output_dim=1)  # fit dense GPy model to this data
             ky = GPy.kern.RBF(self.d, ARD=True, lengthscale=np.ones(self.d))
-            self.GP = GPy.models.GPRegression(X[train], ytrain.reshape(-1, 1), kernel=ky, mean_function=mfy)
-            self.GP.optimize('bfgs')
-            # strip out fitted hyperparameters from GPy model, because cant do high(ish) dim sparse inference
-            self.mu = self.GP.flattened_parameters[0]
-            self.a = self.GP.flattened_parameters[1]
-            self.b = self.GP.flattened_parameters[3]
+            self.internal_model = GPy.models.GPRegression(X[train], ytrain.reshape(-1, 1), kernel=ky, mean_function=mfy)
+            self.internal_model.optimize('bfgs')
+            # strip out fitted hyperparameters from GPy model, because cant do high(ish) dim sparse inference            
+            self.mu = float(self.internal_model.constmap.C)
+            self.a = float(self.internal_model.kern.variance)
+            self.b = float(self.internal_model.Gaussian_noise.variance)
+
+            
             # selecting inducing points for sparse inference
             print('selecting inducing points')
             # get prediction from GPy model
-            self.py = self.GP.predict(X)
+            self.py = self.internal_model.predict(X)
             # points with 100 highest means
             topmu = [untested[i] for i in np.argsort(self.py[0][untested].reshape(-1))[-self.ntopmu:]]
             # points with 100 highest uncertatinty
@@ -216,8 +218,8 @@ class Prospector:
             # email james.l.hook@gmail.com if this bit goes wrong!
             print('fitting sparse model')
 
-            self.SIG_XM = self.GP.kern.K(X, self.M)
-            self.SIG_MM = self.GP.kern.K(self.M, self.M) + (np.identity(self.M.shape[0]) * self.lam * self.a)
+            self.SIG_XM = self.internal_model.kern.K(X, self.M)
+            self.SIG_MM = self.internal_model.kern.K(self.M, self.M) + (np.identity(self.M.shape[0]) * self.lam * self.a)
  
             self.B = self.a + self.b - np.sum(np.multiply(np.linalg.solve(self.SIG_MM, self.SIG_XM.T), self.SIG_XM.T),0)
             K = np.matmul(self.SIG_XM[tested].T, np.divide(self.SIG_XM[tested], self.B[tested].reshape(-1, 1)))
