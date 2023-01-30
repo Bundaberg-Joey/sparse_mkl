@@ -201,19 +201,11 @@ class Prospector:
             
             # selecting inducing points for sparse inference
             print('selecting inducing points')
-            # get prediction from GPy model
-            self.py = self.internal_model.predict(X)
-            # points with 100 highest means
-            topmu = [untested[i] for i in np.argsort(self.py[0][untested].reshape(-1))[-self.ntopmu:]]
-            # points with 100 highest uncertatinty
-            topvar = [untested[i] for i in np.argsort(self.py[1][untested].reshape(-1))[-self.ntopvar:]]
-            # combine with train set above to give nystrom inducing points (inducing points that are also actual trainingdata points)
-            nystrom = topmu + topvar + train
             # also get some inducing points spread throughout domain by using kmeans
             # kmeans is very slow on full dataset so choose random subset
             kms = KMeans(n_clusters=self.nkmeans, max_iter=5).fit(X[list(np.random.choice(untested, self.nkeamnsdata))])
             # matrix of inducing points
-            self.M = np.vstack((X[nystrom], kms.cluster_centers_))
+            self.M = np.vstack((X[train], kms.cluster_centers_))
             # dragons...
             # email james.l.hook@gmail.com if this bit goes wrong!
             print('fitting sparse model')
