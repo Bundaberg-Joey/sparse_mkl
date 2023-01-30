@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.typing import NDArray
 import GPy
 
 
@@ -14,14 +15,28 @@ class Prospector:
         self.X_cls = X_cls
         self.lam=1e-6
         
-    def update_parameters(self, train, ytrain):
+    def update_parameters(self, X_train: NDArray[np.int_], y_train: NDArray[np.float_]) -> None:
+        """Update parameters of sparse model from passed training data.
+        Separate method to `update_data` because of expense incurred when calcualting / fitting here.
+
+        Parameters
+        ----------
+        X_train : NDArray[np.int_]
+            Indices of data points to use when fitting model.
+            
+        y_train : NDArray[np.float_]
+            Performance values of specified data points for fitting model.
+        
+        Returns: None
+            Updates numerous internal parameters
+        """
         # matrix of inducing points
-        self.M = np.vstack((self.X[train], self.X_cls))
+        self.M = np.vstack((self.X[X_train], self.X_cls))
 
         # use GPy code to fit hyperparameters to minimize NLL on train data
         mfy = GPy.mappings.Constant(input_dim=self.d, output_dim=1)  # fit dense GPy model to this data
         ky = GPy.kern.RBF(self.d, ARD=True, lengthscale=np.ones(self.d))
-        self.internal_model = GPy.models.GPRegression(self.X[train], ytrain.reshape(-1, 1), kernel=ky, mean_function=mfy)
+        self.internal_model = GPy.models.GPRegression(self.X[X_train], y_train.reshape(-1, 1), kernel=ky, mean_function=mfy)
         self.internal_model.optimize('bfgs')
 
         self.prior_mu = float(self.internal_model.constmap.C)
@@ -32,10 +47,24 @@ class Prospector:
         self.sig_mm = self.internal_model.kern.K(self.M, self.M) + (np.identity(self.M.shape[0]) * self.lam * self.kernel_var) 
         self.updated_var = self.kernel_var + self.noise_var - np.sum(np.multiply(np.linalg.solve(self.sig_mm, self.sig_xm.T), self.sig_xm.T),0)
     
-    def update_data(self, tested, ytested):
-        K = np.matmul(self.sig_xm[tested].T, np.divide(self.sig_xm[tested], self.updated_var[tested].reshape(-1, 1)))
+    def update_data(self, X_train: NDArray[np.int_], y_train: NDArray[np.float_]) -> None:
+        """Update sparse covaraince matrices with passed data points.
+        Separate method to `update_parameters` as is cheaper and so can be called more frequently for a "partial fit"
+
+        Parameters
+        ----------
+        X_train : NDArray[np.int_]
+            Indices of data points to use when fitting model.
+            
+        y_train : NDArray[np.float_]
+            Performance values of specified data points for fitting model.
+        
+        Returns: None
+            Updates numerous internal parameters
+        """
+        K = np.matmul(self.sig_xm[X_train].T, np.divide(self.sig_xm[X_train], self.updated_var[X_train].reshape(-1, 1)))
         self.SIG_MM_pos = self.sig_mm - K + np.matmul(K, np.linalg.solve(K + self.sig_mm, K))
-        J = np.matmul(self.sig_xm[tested].T, np.divide(ytested - self.prior_mu, self.updated_var[tested]))
+        J = np.matmul(self.sig_xm[X_train].T, np.divide(y_train - self.prior_mu, self.updated_var[X_train]))
         self.mu_M_pos = self.prior_mu + J - np.matmul(K, np.linalg.solve(K + self.sig_mm, J))
 
     def predict(self):
@@ -45,19 +74,18 @@ class Prospector:
 
         :return: mu_X_pos, var_X_pos:
         """
-
         mu_X_pos = self.prior_mu + np.matmul(self.sig_xm, np.linalg.solve(self.sig_mm, self.mu_M_pos - self.prior_mu))
         var_X_pos = np.sum(np.multiply(np.matmul(np.linalg.solve(self.sig_mm,np.linalg.solve(self.sig_mm,self.SIG_MM_pos).T), self.sig_xm.T), self.sig_xm.T), 0)
         return mu_X_pos, np.sqrt(var_X_pos)
 
-    def samples(self, nsamples=1):
+    def samples(self, n_samples=1):
         """
         sparse sampling method. Samples on inducing points and then uses conditional mean given sample values on full dataset
-        :param nsamples: int, Number of samples to draw from the posterior distribution
+        :param n_samples: int, Number of samples to draw from the posterior distribution
 
         :return: samples_X_pos: matrix whose cols are independent samples of the posterior over the full dataset X
         """
-        samples_M_pos = np.random.multivariate_normal(self.mu_M_pos, self.SIG_MM_pos, nsamples).T
+        samples_M_pos = np.random.multivariate_normal(self.mu_M_pos, self.SIG_MM_pos, n_samples).T
         samples_X_pos = self.prior_mu + np.matmul(self.sig_xm, np.linalg.solve(self.sig_mm, samples_M_pos - self.prior_mu))
         return samples_X_pos
     
