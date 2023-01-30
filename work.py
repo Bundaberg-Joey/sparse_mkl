@@ -183,10 +183,10 @@ class Prospector:
             ky = GPy.kern.RBF(self.d, ARD=True, lengthscale=np.ones(self.d))
             self.internal_model = GPy.models.GPRegression(X[train], ytrain.reshape(-1, 1), kernel=ky, mean_function=mfy)
             self.internal_model.optimize('bfgs')
-            # strip out fitted hyperparameters from GPy model, because cant do high(ish) dim sparse inference            
-            self.mu = float(self.internal_model.constmap.C)
-            self.a = float(self.internal_model.kern.variance)
-            self.b = float(self.internal_model.Gaussian_noise.variance)
+
+            self.prior_mu = float(self.internal_model.constmap.C)
+            self.kernel_var = float(self.internal_model.kern.variance)
+            self.noise_var = float(self.internal_model.Gaussian_noise.variance)
 
             
             # selecting inducing points for sparse inference
@@ -198,18 +198,18 @@ class Prospector:
             print('fitting sparse model')
 
             self.SIG_XM = self.internal_model.kern.K(X, self.M)
-            self.SIG_MM = self.internal_model.kern.K(self.M, self.M) + (np.identity(self.M.shape[0]) * self.lam * self.a)
+            self.SIG_MM = self.internal_model.kern.K(self.M, self.M) + (np.identity(self.M.shape[0]) * self.lam * self.kernel_var)
  
-            self.B = self.a + self.b - np.sum(np.multiply(np.linalg.solve(self.SIG_MM, self.SIG_XM.T), self.SIG_XM.T),0)
+            self.B = self.kernel_var + self.noise_var - np.sum(np.multiply(np.linalg.solve(self.SIG_MM, self.SIG_XM.T), self.SIG_XM.T),0)
             K = np.matmul(self.SIG_XM[tested].T, np.divide(self.SIG_XM[tested], self.B[tested].reshape(-1, 1)))
             self.SIG_MM_pos = self.SIG_MM - K + np.matmul(K, np.linalg.solve(K + self.SIG_MM, K))
-            J = np.matmul(self.SIG_XM[tested].T, np.divide(ytested - self.mu, self.B[tested]))
-            self.mu_M_pos = self.mu + J - np.matmul(K, np.linalg.solve(K + self.SIG_MM, J))
+            J = np.matmul(self.SIG_XM[tested].T, np.divide(ytested - self.prior_mu, self.B[tested]))
+            self.mu_M_pos = self.prior_mu + J - np.matmul(K, np.linalg.solve(K + self.SIG_MM, J))
         else:
             K = np.matmul(self.SIG_XM[tested].T, np.divide(self.SIG_XM[tested], self.B[tested].reshape(-1, 1)))
             self.SIG_MM_pos = self.SIG_MM - K + np.matmul(K, np.linalg.solve(K + self.SIG_MM, K))
-            J = np.matmul(self.SIG_XM[tested].T, np.divide(ytested - self.mu, self.B[tested]))
-            self.mu_M_pos = self.mu + J - np.matmul(K, np.linalg.solve(K + self.SIG_MM, J))
+            J = np.matmul(self.SIG_XM[tested].T, np.divide(ytested - self.prior_mu, self.B[tested]))
+            self.mu_M_pos = self.prior_mu + J - np.matmul(K, np.linalg.solve(K + self.SIG_MM, J))
         self.update_counter += 1
         """
         key attributes updated by fit
@@ -230,7 +230,7 @@ class Prospector:
         :return: mu_X_pos, var_X_pos:
         """
 
-        mu_X_pos = self.mu + np.matmul(self.SIG_XM, np.linalg.solve(self.SIG_MM, self.mu_M_pos - self.mu))
+        mu_X_pos = self.prior_mu + np.matmul(self.SIG_XM, np.linalg.solve(self.SIG_MM, self.mu_M_pos - self.prior_mu))
         var_X_pos = np.sum(np.multiply(np.matmul(np.linalg.solve(self.SIG_MM,np.linalg.solve(self.SIG_MM,self.SIG_MM_pos).T), self.SIG_XM.T), self.SIG_XM.T), 0)
         return mu_X_pos, var_X_pos
 
@@ -242,7 +242,7 @@ class Prospector:
         :return: samples_X_pos: matrix whose cols are independent samples of the posterior over the full dataset X
         """
         samples_M_pos = np.random.multivariate_normal(self.mu_M_pos, self.SIG_MM_pos, nsamples).T
-        samples_X_pos = self.mu + np.matmul(self.SIG_XM, np.linalg.solve(self.SIG_MM, samples_M_pos - self.mu))
+        samples_X_pos = self.prior_mu + np.matmul(self.SIG_XM, np.linalg.solve(self.SIG_MM, samples_M_pos - self.prior_mu))
         return samples_X_pos
     
     
