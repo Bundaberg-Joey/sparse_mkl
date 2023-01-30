@@ -198,18 +198,14 @@ class Prospector:
             print('fitting sparse model')
 
             self.sig_xm_train = self.internal_model.kern.K(X, self.M)
-            self.sig_mm_train = self.internal_model.kern.K(self.M, self.M) + (np.identity(self.M.shape[0]) * self.lam * self.kernel_var)
- 
+            self.sig_mm_train = self.internal_model.kern.K(self.M, self.M) + (np.identity(self.M.shape[0]) * self.lam * self.kernel_var) 
             self.updated_var = self.kernel_var + self.noise_var - np.sum(np.multiply(np.linalg.solve(self.sig_mm_train, self.sig_xm_train.T), self.sig_xm_train.T),0)
-            K = np.matmul(self.sig_xm_train[tested].T, np.divide(self.sig_xm_train[tested], self.updated_var[tested].reshape(-1, 1)))
-            self.SIG_MM_pos = self.sig_mm_train - K + np.matmul(K, np.linalg.solve(K + self.sig_mm_train, K))
-            J = np.matmul(self.sig_xm_train[tested].T, np.divide(ytested - self.prior_mu, self.updated_var[tested]))
-            self.mu_M_pos = self.prior_mu + J - np.matmul(K, np.linalg.solve(K + self.sig_mm_train, J))
-        else:
-            K = np.matmul(self.sig_xm_train[tested].T, np.divide(self.sig_xm_train[tested], self.updated_var[tested].reshape(-1, 1)))
-            self.SIG_MM_pos = self.sig_mm_train - K + np.matmul(K, np.linalg.solve(K + self.sig_mm_train, K))
-            J = np.matmul(self.sig_xm_train[tested].T, np.divide(ytested - self.prior_mu, self.updated_var[tested]))
-            self.mu_M_pos = self.prior_mu + J - np.matmul(K, np.linalg.solve(K + self.sig_mm_train, J))
+        
+        K = np.matmul(self.sig_xm_train[tested].T, np.divide(self.sig_xm_train[tested], self.updated_var[tested].reshape(-1, 1)))
+        self.SIG_MM_pos = self.sig_mm_train - K + np.matmul(K, np.linalg.solve(K + self.sig_mm_train, K))
+        J = np.matmul(self.sig_xm_train[tested].T, np.divide(ytested - self.prior_mu, self.updated_var[tested]))
+        self.mu_M_pos = self.prior_mu + J - np.matmul(K, np.linalg.solve(K + self.sig_mm_train, J))
+        
         self.update_counter += 1
         """
         key attributes updated by fit
