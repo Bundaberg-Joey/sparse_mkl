@@ -197,19 +197,19 @@ class Prospector:
             # email james.l.hook@gmail.com if this bit goes wrong!
             print('fitting sparse model')
 
-            self.SIG_XM = self.internal_model.kern.K(X, self.M)
-            self.SIG_MM = self.internal_model.kern.K(self.M, self.M) + (np.identity(self.M.shape[0]) * self.lam * self.kernel_var)
+            self.sig_xm_train = self.internal_model.kern.K(X, self.M)
+            self.sig_mm_train = self.internal_model.kern.K(self.M, self.M) + (np.identity(self.M.shape[0]) * self.lam * self.kernel_var)
  
-            self.B = self.kernel_var + self.noise_var - np.sum(np.multiply(np.linalg.solve(self.SIG_MM, self.SIG_XM.T), self.SIG_XM.T),0)
-            K = np.matmul(self.SIG_XM[tested].T, np.divide(self.SIG_XM[tested], self.B[tested].reshape(-1, 1)))
-            self.SIG_MM_pos = self.SIG_MM - K + np.matmul(K, np.linalg.solve(K + self.SIG_MM, K))
-            J = np.matmul(self.SIG_XM[tested].T, np.divide(ytested - self.prior_mu, self.B[tested]))
-            self.mu_M_pos = self.prior_mu + J - np.matmul(K, np.linalg.solve(K + self.SIG_MM, J))
+            self.updated_var = self.kernel_var + self.noise_var - np.sum(np.multiply(np.linalg.solve(self.sig_mm_train, self.sig_xm_train.T), self.sig_xm_train.T),0)
+            K = np.matmul(self.sig_xm_train[tested].T, np.divide(self.sig_xm_train[tested], self.updated_var[tested].reshape(-1, 1)))
+            self.SIG_MM_pos = self.sig_mm_train - K + np.matmul(K, np.linalg.solve(K + self.sig_mm_train, K))
+            J = np.matmul(self.sig_xm_train[tested].T, np.divide(ytested - self.prior_mu, self.updated_var[tested]))
+            self.mu_M_pos = self.prior_mu + J - np.matmul(K, np.linalg.solve(K + self.sig_mm_train, J))
         else:
-            K = np.matmul(self.SIG_XM[tested].T, np.divide(self.SIG_XM[tested], self.B[tested].reshape(-1, 1)))
-            self.SIG_MM_pos = self.SIG_MM - K + np.matmul(K, np.linalg.solve(K + self.SIG_MM, K))
-            J = np.matmul(self.SIG_XM[tested].T, np.divide(ytested - self.prior_mu, self.B[tested]))
-            self.mu_M_pos = self.prior_mu + J - np.matmul(K, np.linalg.solve(K + self.SIG_MM, J))
+            K = np.matmul(self.sig_xm_train[tested].T, np.divide(self.sig_xm_train[tested], self.updated_var[tested].reshape(-1, 1)))
+            self.SIG_MM_pos = self.sig_mm_train - K + np.matmul(K, np.linalg.solve(K + self.sig_mm_train, K))
+            J = np.matmul(self.sig_xm_train[tested].T, np.divide(ytested - self.prior_mu, self.updated_var[tested]))
+            self.mu_M_pos = self.prior_mu + J - np.matmul(K, np.linalg.solve(K + self.sig_mm_train, J))
         self.update_counter += 1
         """
         key attributes updated by fit
@@ -230,8 +230,8 @@ class Prospector:
         :return: mu_X_pos, var_X_pos:
         """
 
-        mu_X_pos = self.prior_mu + np.matmul(self.SIG_XM, np.linalg.solve(self.SIG_MM, self.mu_M_pos - self.prior_mu))
-        var_X_pos = np.sum(np.multiply(np.matmul(np.linalg.solve(self.SIG_MM,np.linalg.solve(self.SIG_MM,self.SIG_MM_pos).T), self.SIG_XM.T), self.SIG_XM.T), 0)
+        mu_X_pos = self.prior_mu + np.matmul(self.sig_xm_train, np.linalg.solve(self.sig_mm_train, self.mu_M_pos - self.prior_mu))
+        var_X_pos = np.sum(np.multiply(np.matmul(np.linalg.solve(self.sig_mm_train,np.linalg.solve(self.sig_mm_train,self.SIG_MM_pos).T), self.sig_xm_train.T), self.sig_xm_train.T), 0)
         return mu_X_pos, var_X_pos
 
     def samples(self, nsamples=1):
@@ -242,7 +242,7 @@ class Prospector:
         :return: samples_X_pos: matrix whose cols are independent samples of the posterior over the full dataset X
         """
         samples_M_pos = np.random.multivariate_normal(self.mu_M_pos, self.SIG_MM_pos, nsamples).T
-        samples_X_pos = self.prior_mu + np.matmul(self.SIG_XM, np.linalg.solve(self.SIG_MM, samples_M_pos - self.prior_mu))
+        samples_X_pos = self.prior_mu + np.matmul(self.sig_xm_train, np.linalg.solve(self.sig_mm_train, samples_M_pos - self.prior_mu))
         return samples_X_pos
     
     
