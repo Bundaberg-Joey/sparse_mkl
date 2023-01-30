@@ -3,7 +3,7 @@ from sklearn.preprocessing import scale
 from sklearn.cluster import KMeans
 import numpy as np
 
-from work import Prospector
+from mkl.prospector import Prospector
 from mkl.acquisition import GreedyNRanking
 
 
