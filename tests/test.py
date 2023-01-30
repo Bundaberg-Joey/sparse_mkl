@@ -10,7 +10,7 @@ from sklearn.datasets import make_regression
 from mkl.acquisition import GreedyNRanking
 from mkl.data import Hdf5Dataset
 from mkl.kernel import RbfKernelIdx, WhiteKernelIdx, TanimotoKernelIdx
-from mkl.model import SparseGaussianProcess
+from mkl._model_old import SparseGaussianProcess
 
 
 # -----------------------------------------------------------------------------------------------------------------------------

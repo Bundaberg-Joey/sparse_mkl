@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.typing import NDArray
 
-from mkl.model import EnsembleSparseGaussianProcess
+from mkl._model_old import EnsembleSparseGaussianProcess
 from mkl.acquisition import GreedyNRanking
 
 
