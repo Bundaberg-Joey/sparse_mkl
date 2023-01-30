@@ -4,35 +4,23 @@
 
 ## MSPARSE MODEL PROBLEMS
 ### The problem
-* Sparse GP is only returning the mean of the passed training data when asked to make a prediction
-* There is some small fluctuation in the returned values but only in the 1st or 2nd decimal place
-* This is also true for predictions on data points already seen by the model (which would expect to see just the training values returned...)
-* Because the model can run from end to end quickly for large numbers of samples, it is likely that this is NOT a matrix / shape issue but instead a parameter is not being inferred or set correctly which then causes down stream issues.
-* For the moment, the likely place to investigate is the hyperparameters extrated from the internal model (previously GPy but not sklearn)
-* If that still does not solve the problem then either a different cause is responsible or it is a joint responsibility beteen problems of param extraction AND application
+* Have managed to re-write Jame's old Prospector model into something which should be agnotic for a Tanimotokernel to work which has been implemented by `GPy`
+* Need to research how to implement a single kernel Tanimoto model which also has the variance as part of its kernel
+* Someone did a Tanimoto kernel with variance uing GPFlow a while ago so likely a good reference
+>* Worse comes to worse might be able to use GPFlow as the entire dense back end so long as correct hyperparameters can be access by the model
+* Once can figure out how to do a single kernel Tanimoto, the MKL can e achieved by just fitting and applying models in a loop since the sparse model mainly just needs the covaraince matrices rather than a specific prediction ability (i.e. so can find covar using GPy but then weight outside of the model with regular python)
 
-### Current Goal
-* Get the sparse GP model to behave "sensibly" for the RBF kernel (wither GPy or sklearn)
-* Once that's done the next goal will be to get a Tanimoto kernel to work
-* After that, the next goal will be getting the mkl model to work for multiple tanimoto kernels
+* [link to the GPFlow example which seems to be able to access relevant model values...](https://github.com/Ryan-Rhys/The-Photoswitch-Dataset/blob/master/examples/gp_regression_on_molecules.ipynb)
 
-### Steps to Take for the sparse GP model to behave with RBF
-#### 1. Establish a concrete dataset for evaluating this problem
-* helps between tests / keeps everything "lined up"
-* small number of features / samples etc for speed
+### The Solution
+* see if can easily install GPflow to a docker image with other conda packages
+* then try the densemodel using GPFlow instead of GPY for an RBF model
+* if the acquisition runs fine using this GPFlow model then just use GPFLow + the tanimoto kernel layout from the linked notebook above
+>* benchmark costs but may aswell still use the joblib version i did since this will be running no CPU not GPU
 
-#### 2. change sparse GP to use the GPy code internally 
-* see if this can solve the problem from the outset
-* can worry about applying kernel directly etc after
-
-#### 2. Asses performance of "original" sparse model by James on this dataset
-* lets you know how things should behave when working
-
-
-
-
-
-
+### The goal
+* By end of day Tuesday, have a tanimoto GP up and running within the sparse GP
+* If time start thinking about how to do the MKL model with all of this
 
 
 
