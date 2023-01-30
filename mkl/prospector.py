@@ -1,8 +1,8 @@
-from typing import Union, Tuple
-
 import numpy as np
-from numpy.typing import NDArray
 import GPy
+
+
+# ------------------------------------------------------------------------------------------------------------------------------------
 
 
 class Prospector:
@@ -95,7 +95,7 @@ class Prospector:
 
         mu_X_pos = self.prior_mu + np.matmul(self.sig_xm, np.linalg.solve(self.sig_mm, self.mu_M_pos - self.prior_mu))
         var_X_pos = np.sum(np.multiply(np.matmul(np.linalg.solve(self.sig_mm,np.linalg.solve(self.sig_mm,self.SIG_MM_pos).T), self.sig_xm.T), self.sig_xm.T), 0)
-        return mu_X_pos, var_X_pos
+        return mu_X_pos, np.sqrt(var_X_pos)
 
     def samples(self, nsamples=1):
         """
@@ -108,9 +108,64 @@ class Prospector:
         samples_X_pos = self.prior_mu + np.matmul(self.sig_xm, np.linalg.solve(self.sig_mm, samples_M_pos - self.prior_mu))
         return samples_X_pos
     
-    
+
+# ------------------------------------------------------------------------------------------------------------------------------------
+
     
 class Ensemble:
     
-    def fit(X_train, y_train):
-        pass
+    def __init__(self, sparse_rbf, sparse_mkl) -> None:
+        self.sparse_rbf = sparse_rbf
+        self.sparse_mkl = sparse_mkl
+        self.update_counter = 0
+        self.updates_per_big_fit = 10
+        self.ntop=100 
+        self.nmax=400
+    
+    def fit(self, X_train, y_train):
+        
+        if self.update_counter % self.updates_per_big_fit == 0:
+            
+            n_tested = len(y_train)
+            # if more than nmax we will subsample and use the subsample to fit hyperparametesr
+            if n_tested <= self.nmax:
+                pass
+
+            else:
+                # subsample if above certain number of points to keep "fitting" fast
+                top_ind = np.argsort(y_train)[-self.ntop:]  # indices of top y sampled so far
+                rand_ind = np.random.choice([i for i in range(n_tested) if i not in top_ind], replace=False, size=n_tested-self.ntop)  # other indices
+                chosen = np.hstack((top_ind, rand_ind))
+                y_train = y_train[chosen]
+                X_train = X_train[chosen]
+
+    
+            self.sparse_rbf.update_params(X_train, y_train)
+            self.sparse_mkl.update_params(X_train, y_train)
+        
+        self.sparse_rbf.update_data(X_train, y_train)
+        self.sparse_mkl.update_data(X_train, y_train)
+        self.update_counter += 1
+    
+    def predict(self):
+        def _calc_precision(std):
+            return 1 / (std ** 2)
+
+        mu_rbf, std_rbf = self.sparse_rbf.predict()
+        mu_mkl, std_mkl = self.sparse_mkl.predict()
+        
+        p1, p2 = _calc_precision(std_rbf), _calc_precision(std_mkl)
+        p = p1 + p2
+        
+        mu = ((p1 * mu_rbf) + (p2 * mu_mkl)) / p
+        std = 1 / np.sqrt(p)
+        return mu, std
+    
+    def sample_y(self, n_samples):
+        post_rbf = self.sparse_rbf.sample_y(n_samples)
+        post_mkl = self.sparse_mkl.sample_y(n_samples)   
+        # likely a better way to combine than just a stacking approach?     
+        return np.hstack((post_rbf, post_mkl))
+
+
+# ------------------------------------------------------------------------------------------------------------------------------------
