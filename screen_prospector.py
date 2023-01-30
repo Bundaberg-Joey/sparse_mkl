@@ -2,8 +2,9 @@ import pandas as pd
 from sklearn.preprocessing import scale
 from sklearn.cluster import KMeans
 import numpy as np
+from scipy.cluster.vq import vq
 
-from mkl.model import SparseGaussianProcess
+from mkl.model import SparseGaussianProcess, DenseRBFModel
 from mkl.acquisition import GreedyNRanking
 
 
@@ -25,13 +26,15 @@ y_train = y[X_train_ind]
 
 # ----------------------------------------------------
 kms = KMeans(n_clusters=300, max_iter=5)
-kms.fit(X)  # or subsample to X[:5000] as original model to allow faster fitting but if doing externally can probably do for full dataset
+kms.fit(X)
 X_cls = kms.cluster_centers_
+cls_ind, _ = vq(X_cls, X)  # need to use in data locations
 
 # ----------------------------------------------------
 
 
-model = SparseGaussianProcess(X=X, X_cls=X_cls)
+dense_model = DenseRBFModel(X=X, X_M=cls_ind)
+model = SparseGaussianProcess(dense_model=dense_model)
 acqu = GreedyNRanking()
 
 for itr in range(50, 100):
@@ -40,6 +43,7 @@ for itr in range(50, 100):
     y_train = y[X_train_ind]
 
     if itr % 10 == 0:
+        print('big fit')
         model.update_parameters(X_train_ind, y_train)
     model.update_data(X_train_ind, y_train)
 
@@ -55,4 +59,4 @@ for itr in range(50, 100):
     print(F'[{itr} / 100] : {n_top_found}/{n_top} found : y_max_tested={max(y):.3f} : y_sampled={y[to_sample]}')
     
     
-    
+assert n_top_found >= 25

@@ -4,13 +4,47 @@ import GPy
 
 
 # ------------------------------------------------------------------------------------------------------------------------------------
+
+
+class DenseRBFModel:
+    
+    def __init__(self, X, X_M):
+        self.X = X  # data object
+        self.M = self.X[X_M]  # indices passed to data object (M is a data object)
+        self.n_feat = len(self.X[0])
+        
+    def fit(self, X_ind, y_val):
+        self.M = np.vstack((self.X[X_ind], self.M))  # cotinually incorporates training data
+
+        mfy = GPy.mappings.Constant(input_dim=self.n_feat, output_dim=1)
+        ky = GPy.kern.RBF(self.n_feat, ARD=True, lengthscale=np.ones(self.n_feat))
+        self.model = GPy.models.GPRegression(self.X[X_ind], y_val.reshape(-1, 1), kernel=ky, mean_function=mfy)
+        self.model.optimize('bfgs')
+        
+    def get_prior_mu(self):
+        return float(self.model.constmap.C)
+
+    def get_kernel_var(self):
+        return float(self.model.kern.variance)
+    
+    def get_gaussian_var(self):
+        return float(self.model.Gaussian_noise.variance)
+    
+    def calc_k_xm(self):
+        return self.model.kern.K(self.X, self.M)
+    
+    def calc_k_mm(self):
+        return self.model.kern.K(self.M, self.M)
+
+
+# ------------------------------------------------------------------------------------------------------------------------------------
+
+
 class SparseGaussianProcess:
 
-    def __init__(self, X, X_cls):
+    def __init__(self, dense_model: DenseRBFModel):
         """ Initializes by storing all feature values """
-        self.X = X
-        self.n, self.d = X.shape
-        self.X_cls = X_cls
+        self.dense_model = dense_model
         self.lam=1e-6
         
     def update_parameters(self, X_train: NDArray[np.int_], y_train: NDArray[np.float_]) -> None:
@@ -28,21 +62,16 @@ class SparseGaussianProcess:
         Returns: None
             Updates numerous internal parameters
         """
-        # matrix of inducing points
-        self.M = np.vstack((self.X[X_train], self.X_cls))
+        self.dense_model.fit(X_train, y_train)
+        
+        self.prior_mu = self.dense_model.get_prior_mu()
+        self.kernel_var = self.dense_model.get_kernel_var()
+        self.noise_var = self.dense_model.get_gaussian_var()
 
-        # use GPy code to fit hyperparameters to minimize NLL on train data
-        mfy = GPy.mappings.Constant(input_dim=self.d, output_dim=1)  # fit dense GPy model to this data
-        ky = GPy.kern.RBF(self.d, ARD=True, lengthscale=np.ones(self.d))
-        self.internal_model = GPy.models.GPRegression(self.X[X_train], y_train.reshape(-1, 1), kernel=ky, mean_function=mfy)
-        self.internal_model.optimize('bfgs')
-
-        self.prior_mu = float(self.internal_model.constmap.C)
-        self.kernel_var = float(self.internal_model.kern.variance)
-        self.noise_var = float(self.internal_model.Gaussian_noise.variance)
-
-        self.sig_xm = self.internal_model.kern.K(self.X, self.M)
-        self.sig_mm = self.internal_model.kern.K(self.M, self.M) + (np.identity(self.M.shape[0]) * self.lam * self.kernel_var) 
+        k_mm = self.dense_model.calc_k_mm()
+        
+        self.sig_xm = self.dense_model.calc_k_xm()
+        self.sig_mm = k_mm + (np.identity(k_mm.shape[0]) * self.lam * self.kernel_var) 
         self.updated_var = self.kernel_var + self.noise_var - np.sum(np.multiply(np.linalg.solve(self.sig_mm, self.sig_xm.T), self.sig_xm.T),0)
     
     def update_data(self, X_train: NDArray[np.int_], y_train: NDArray[np.float_]) -> None:
