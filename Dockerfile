@@ -9,7 +9,7 @@ COPY environment.yml .
 RUN conda env update -n base --file environment.yml \
     && conda clean -afy
 
-RUN conda install -c conda-forge GPy
+RUN conda install -c conda-forge GPy pandas
 
 WORKDIR /app
 
