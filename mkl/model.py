@@ -4,32 +4,27 @@ from numpy.typing import NDArray
 
 import gpflow
 
+from mkl.kernel import TanimotoKernel
+
 
 # ------------------------------------------------------------------------------------------------------------------------------------
 
-
-class DenseRBFModel:
+class DenseGpflowModel:
     
     def __init__(self, X, X_M):
         self.X = X  # data object
         self.M = self.X[X_M]  # indices passed to data object (M is a data object)
-        self.n_feat = len(self.X[0])
-        
+    
     def fit(self, X_ind, y_val):
         self.M = np.vstack((self.X[X_ind], self.M))  # cotinually incorporates training data
         
         x_ = self.X[X_ind]
         y_ = np.reshape(y_val, (-1, 1))
-
-        self.model = gpflow.models.GPR(
-            data=(x_, y_), 
-            kernel=gpflow.kernels.RBF(lengthscales=np.ones(self.n_feat)),
-            mean_function=gpflow.mean_functions.Constant()
-        )
         
+        self.model = self.build_model(x_, y_)
         opt = gpflow.optimizers.Scipy()
-        opt.minimize(self.model.training_loss, self.model.trainable_variables)        
-        
+        opt.minimize(self.model.training_loss, self.model.trainable_variables)  
+    
     def get_prior_mu(self):
         return self.model.mean_function.c.numpy()
 
@@ -44,18 +39,43 @@ class DenseRBFModel:
     
     def calc_k_mm(self):
         return self.model.kernel.K(self.M, self.M).numpy()
+    
 
+
+class DenseRBFModel(DenseGpflowModel):
+
+    @staticmethod
+    def build_model(X, y):
+        model = gpflow.models.GPR(
+        data=(X, y), 
+        kernel=gpflow.kernels.RBF(lengthscales=np.ones(X.shape[1])),
+        mean_function=gpflow.mean_functions.Constant()
+        )
+        return model
+        
+        
+class DenseTanimotoModel(DenseGpflowModel):
+    
+    @staticmethod
+    def build_model(X, y):
+        model = gpflow.models.GPR(
+            data=(X, y),
+            kernel=TanimotoKernel(),
+            mean_function=gpflow.mean_functions.Constant()
+        )
+        return model
+      
 
 # ------------------------------------------------------------------------------------------------------------------------------------
 
 
 class SparseGaussianProcess:
 
-    def __init__(self, dense_model: DenseRBFModel):
+    def __init__(self, dense_model: DenseGpflowModel):
         """
         Parameters
         ----------
-        dense_model : DenseRBFModel
+        dense_model : DenseGpflowModel
             A dense model whih performs fit and prediction to all of pssed data.
             Used to estimate various hyperparameters which are extracted and used by sparse model.
         """
