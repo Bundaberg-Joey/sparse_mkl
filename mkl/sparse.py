@@ -100,43 +100,121 @@ class SparseGaussianProcess:
 # ------------------------------------------------------------------------------------------------------------------------------------
 
     
-class Ensemble:
+class EnsembleSparseGaussianProcess:
+    """Ensemble model for sparse gaussian process regressors.
+    Combines a sparse RBF kernel model and a MKL using tanimoto kernel learners.
+    """
     
-    def __init__(self, sparse_rbf, sparse_mkl) -> None:
+    def __init__(self, 
+                 sparse_rbf: SparseGaussianProcess, 
+                 sparse_mkl: SparseGaussianProcess,
+                 param_update_freq: int=10, 
+                 n_top: int=100,
+                 n_max: int=400) -> None:
+        """
+        Parameters
+        ----------
+        sparse_rbf : SparseGaussianProcess
+            
+        sparse_mkl : SparseGaussianProcess
+            
+        param_update_freq : int, optional
+            How many times `fit` must be called for `update_params` to be called for the ensemble models.
+            Will be called on the first instance of fit in all cases.
+            `update_params` is a more expensive method than `update_data` hence the difference in update frequency.
+        
+        n_max : int, optional
+            Maximum number of data points to be passed to the ensemble models for `update_params` and `update_data`.
+            If breached then data points are subsampled to achieve `n_max`.
+    
+        n_top : int, optional
+            Number of top performers to include in the subsampled matrix passed to `update_params` as part of `n_max`.
+            Will be `n_top` of the best performing entries in `y` passed to `fit`.
+            
+        """
         self.sparse_rbf = sparse_rbf
         self.sparse_mkl = sparse_mkl
-        self.update_counter = 0
-        self.updates_per_big_fit = 10
-        self.ntop=100 
-        self.nmax=400
+        
+        self.param_update_freq = int(param_update_freq)
+        self.n_top=int(n_top) 
+        self.n_max=int(n_max)
+        
+        self._update_counter = 0
     
-    def fit(self, X_train, y_train):
+    def fit(self, X_ind: NDArray[np.int_], y_val: NDArray[np.float_]) -> None:
+        """Fit the ensemble models to the passed data points.
+        If the number of data points passed is > self.n_max then the data points will be subsampled to `self.n_max`
+        to ensure the fitting time doesnt grow significantly at higher numers of data points.
+        
+        The parameters of the ensemble models are only updated every `self.param_update_freq` times that `fit` is called.
+        This ensures that fast predictions / fitting / posterior samples can be achieved during a screening.
+
+        Parameters
+        ----------
+        X_ind : NDArray[np.int_]
+            Indices of data points to use when fitting.
+            They are also incorporated into the inducing feature matrix each time fit is called.
+            
+        y_val : NDArray[np.float_]
+            Target values for each entry. 
+            
+        Returns
+        -------
+        None
+        """
         # same update logic as single sparse model but allows for ensemble to keep track / apply methods independently
         
-        if self.update_counter % self.updates_per_big_fit == 0:
+        if self._update_counter % self.param_update_freq == 0:
             
-            n_tested = len(y_train)
+            n_tested = len(y_val)
             # if more than nmax we will subsample and use the subsample to fit hyperparametesr
-            if n_tested <= self.nmax:
+            if n_tested <= self.n_max:
                 pass
 
             else:
                 # subsample if above certain number of points to keep "fitting" fast
-                top_ind = np.argsort(y_train)[-self.ntop:]  # indices of top y sampled so far
-                rand_ind = np.random.choice([i for i in range(n_tested) if i not in top_ind], replace=False, size=n_tested-self.ntop)  # other indices
+                top_ind = np.argsort(y_val)[-self.n_top:]  # indices of top y sampled so far
+                rand_ind = np.random.choice([i for i in range(n_tested) if i not in top_ind], replace=False, size=n_tested-self.n_top)  # other indices
                 chosen = np.hstack((top_ind, rand_ind))
-                y_train = y_train[chosen]
-                X_train = X_train[chosen]
+                y_val = y_val[chosen]
+                X_ind = X_ind[chosen]
 
     
-            self.sparse_rbf.update_params(X_train, y_train)
-            self.sparse_mkl.update_params(X_train, y_train)
+            self.sparse_rbf.update_params(X_ind, y_val)
+            self.sparse_mkl.update_params(X_ind, y_val)
         
-        self.sparse_rbf.update_data(X_train, y_train)
-        self.sparse_mkl.update_data(X_train, y_train)
-        self.update_counter += 1
+        self.sparse_rbf.update_data(X_ind, y_val)
+        self.sparse_mkl.update_data(X_ind, y_val)
+        self._update_counter += 1
     
-    def predict(self):
+    def sample_y(self, n_samples: int=1) -> NDArray[NDArray[np.float_]]:
+        """Sample from the posterior of the ensemble sparse models.
+        
+
+        Parameters
+        ----------
+        n_samples : int, optional
+            specifies how many samples to draw from EACH model for each data point in the dataset.
+            So for `n_samples=1` the output will have shape (n, 2) as two models in the ensemble.
+
+        Returns
+        -------
+        NDArray[NDArray[np.float_]]
+            Will have dimensions (n, n_samples * 2) since draw from each model.
+        """
+        post_rbf = self.sparse_rbf.sample_y(n_samples)
+        post_mkl = self.sparse_mkl.sample_y(n_samples)   
+        return np.hstack((post_rbf, post_mkl))
+    
+    def predict(self) -> Tuple[NDArray[np.float_], NDArray[np.float_]]:
+        """Predict the performance values and standard deviations for the whole dataset for each of the ensmeble models.
+        the predicted mean and variance are combined as per: XXX
+
+        Returns
+        -------
+        Tuple[NDArray[np.float_], NDArray[np.float_]]
+            predicted mean and variance.
+        """
         def _calc_precision(std):
             return 1 / (std ** 2)
 
@@ -150,11 +228,6 @@ class Ensemble:
         std = 1 / np.sqrt(p)
         return mu, std
     
-    def sample_y(self, n_samples):
-        post_rbf = self.sparse_rbf.sample_y(n_samples)
-        post_mkl = self.sparse_mkl.sample_y(n_samples)   
-        # likely a better way to combine than just a stacking approach?     
-        return np.hstack((post_rbf, post_mkl))
 
 
 # ------------------------------------------------------------------------------------------------------------------------------------
