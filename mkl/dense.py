@@ -1,8 +1,8 @@
 from typing import List
+
 import numpy as np
 
 import gpflow
-
 from mkl.kernel import TanimotoKernel
 
 
@@ -126,5 +126,48 @@ class DenseMultipleKernelLearner(DenseTanimotoModel):
             
         return sum(k)
 
+
+# ------------------------------------------------------------------------------------------------------------------------------------
+
+
+class DynamicDenseMKL(DenseMultipleKernelLearner):
+    # Weights kernels in the multi kernel learner using the "kernel allignment" method.
+    
+    def __init__(self, X: List, X_M: List):
+        super().__init__(X, X_M)
+
+    @staticmethod
+    def calc_frobenius_product(Ka, Kb):
+        """calculate frobenius product between kernel matrices
+        Parameters
+        ----------
+        Ka : np.ndarray[float]
+            
+        Kb : np.ndarray[float]
+        Returns
+        -------
+        float
+            allignment score with `1.0` being the highest allignment score and lowest being `0.0`
+        """
+        return np.einsum('ij,ij->', Ka, Kb)
+    
+    def fit(self, X_ind, y_val):
+        super().fit(X_ind, y_val)
+        
+        y_val = y_val.reshape(-1, 1)
+        yc = ((y_val - y_val.mean()) / y_val.std())
+        Kyy = np.dot(yc, yc.T)
+        bb = self.calc_frobenius_product(Kyy, Kyy)
+        
+        allignments = np.ones(self.n_kernels)
+        
+        for i in range(self.n_kernels):
+            ka = self.models[i].kernel.K(self.X[i][X_ind]).numpy()
+            aa, ab = (self.calc_frobenius_product(x, y) for x, y in ((ka, ka), (ka, Kyy)))
+            allignments[i] = ab / (np.sqrt(aa * bb))
+        
+        self.weights = allignments / np.sum(allignments)
+        
+    
 
 # ------------------------------------------------------------------------------------------------------------------------------------

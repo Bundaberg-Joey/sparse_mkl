@@ -7,7 +7,7 @@ import numpy as np
 from scipy.cluster.vq import vq
 
 from mkl.sparse import SparseGaussianProcess
-from mkl.dense import DenseRBFModel, DenseTanimotoModel, DenseMultipleKernelLearner
+from mkl.dense import DenseRBFModel, DenseTanimotoModel, DenseMultipleKernelLearner, DynamicDenseMKL
 from mkl.acquisition import GreedyNRanking
 
 
@@ -124,7 +124,12 @@ def test_sparse_gp_screening_tanimoto():
 
     
 @pytest.mark.slow
-def test_sparse_gp_screening_DenseMultipleKernelLearner_double_same_kernel():
+@pytest.mark.parametrize("model", 
+                         [
+                             DenseMultipleKernelLearner,
+                             DynamicDenseMKL
+                         ])
+def test_sparse_gp_screening_dense_mkl_models_double_same_kernel(model):
     # just double up the same kernel used for the singular tanimoto approach (test is the same but need to pass different datasets at init)
     df = pd.read_csv('tests/molecule.csv')
     X, y = df.iloc[:, :2048].values, df.iloc[:, -1].values
@@ -143,7 +148,7 @@ def test_sparse_gp_screening_DenseMultipleKernelLearner_double_same_kernel():
     cls_ind, _ = vq(X_cls, X)  # need to use in data locations
 
     # ----------------------------------------------------
-    dense_model = DenseMultipleKernelLearner(X=[X, X], X_M=[cls_ind, cls_ind])
+    dense_model = model(X=[X, X], X_M=[cls_ind, cls_ind])
     model = SparseGaussianProcess(dense_model=dense_model)
     acqu = GreedyNRanking()
 
