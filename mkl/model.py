@@ -1,7 +1,8 @@
 from typing import Tuple
 import numpy as np
 from numpy.typing import NDArray
-import GPy
+
+import gpflow
 
 
 # ------------------------------------------------------------------------------------------------------------------------------------
@@ -16,26 +17,33 @@ class DenseRBFModel:
         
     def fit(self, X_ind, y_val):
         self.M = np.vstack((self.X[X_ind], self.M))  # cotinually incorporates training data
+        
+        x_ = self.X[X_ind]
+        y_ = np.reshape(y_val, (-1, 1))
 
-        mfy = GPy.mappings.Constant(input_dim=self.n_feat, output_dim=1)
-        ky = GPy.kern.RBF(self.n_feat, ARD=True, lengthscale=np.ones(self.n_feat))
-        self.model = GPy.models.GPRegression(self.X[X_ind], y_val.reshape(-1, 1), kernel=ky, mean_function=mfy)
-        self.model.optimize('bfgs')
+        self.model = gpflow.models.GPR(
+            data=(x_, y_), 
+            kernel=gpflow.kernels.RBF(lengthscales=np.ones(self.n_feat)),
+            mean_function=gpflow.mean_functions.Constant()
+        )
+        
+        opt = gpflow.optimizers.Scipy()
+        opt.minimize(self.model.training_loss, self.model.trainable_variables)        
         
     def get_prior_mu(self):
-        return float(self.model.constmap.C)
+        return self.model.mean_function.c.numpy()
 
     def get_kernel_var(self):
-        return float(self.model.kern.variance)
+        return self.model.kernel.variance.numpy()
     
     def get_gaussian_var(self):
-        return float(self.model.Gaussian_noise.variance)
+        return self.model.likelihood.variance.numpy()
     
     def calc_k_xm(self):
-        return self.model.kern.K(self.X, self.M)
+        return self.model.kernel.K(self.X, self.M).numpy()
     
     def calc_k_mm(self):
-        return self.model.kern.K(self.M, self.M)
+        return self.model.kernel.K(self.M, self.M).numpy()
 
 
 # ------------------------------------------------------------------------------------------------------------------------------------
