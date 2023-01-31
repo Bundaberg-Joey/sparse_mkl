@@ -6,7 +6,8 @@ from sklearn.cluster import KMeans
 import numpy as np
 from scipy.cluster.vq import vq
 
-from mkl.model import SparseGaussianProcess, DenseRBFModel, DenseTanimotoModel, DenseMultipleKernelLearner
+from mkl.sparse import SparseGaussianProcess
+from mkl.dense import DenseRBFModel, DenseTanimotoModel, DenseMultipleKernelLearner
 from mkl.acquisition import GreedyNRanking
 
 
