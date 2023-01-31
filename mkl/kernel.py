@@ -1,125 +1,65 @@
-from typing import Union, Optional
+from typing import Optional
 
-import numpy as np
-from numpy.typing import NDArray
-from sklearn.gaussian_process.kernels import Kernel, RBF, WhiteKernel
-from sklearn.utils import gen_even_slices
-
-from joblib import Parallel, delayed, effective_n_jobs
-
-from mkl.data import Hdf5Dataset
+import gpflow
+from gpflow.utilities import positive, ops
+import tensorflow as tf
 
 
-# -----------------------------------------------------------------------------------------------------------------------------
-
-
-class TanimotoKernelIdx(Kernel):
-    """Tanimoto kernel for integer arrays but accepts indices rather than explicit features.
-    Explicit features are indexed from the database provided at init.
-    Allows for easier compatability with other MKL models.
+class TanimotoKernel(gpflow.kernels.Kernel):
+    """Tanimoto Kernel implemented using GPflow.
+    The variance is used as a kernel parameter and optimised during model optimisation.
+    
+    This implementation is taken from the below publication:
+    
+        @article{Thawani2020,
+        author = "Aditya Thawani and Ryan-Rhys Griffiths and Arian Jamasb and Anthony Bourached and Penelope Jones and William McCorkindale and Alexander Aldrick and Alpha Lee",
+        title = "{The Photoswitch Dataset: A Molecular Machine Learning Benchmark for the Advancement of Synthetic Chemistry}",
+        year = "2020",
+        month = "7",
+        url = "https://chemrxiv.org/articles/preprint/The_Photoswitch_Dataset_A_Molecular_Machine_Learning_Benchmark_for_the_Advancement_of_Synthetic_Chemistry/12609899",
+        doi = "10.26434/chemrxiv.12609899.v1"
+        }
     """
-    
-    def __init__(self, dataset:Union[Hdf5Dataset, NDArray], n_jobs: int=1) -> None:
-        self.dataset = dataset
-        self.n_jobs = int(n_jobs)
-    
-    def __call__(self, X: NDArray[np.int_], Y: Optional[NDArray[np.int_]]=None, eval_gradient: bool=False):
-        Xa = self.dataset[np.ravel(X)]
-        
-        if Y is None:
-            K = self._calc_sim(Xa, Xa, self.n_jobs)
-        else:
-            Xb = self.dataset[np.ravel(Y)]
-            K = self._calc_sim(Xa, Xb, self.n_jobs)
+    def __init__(self):
+        super().__init__()
+        self.variance = gpflow.Parameter(1.0, transform=positive())
+
+    def K(self, X: tf.Tensor, X2: Optional[tf.Tensor]=None) -> tf.Tensor:
+        """Calculates the covaraince matrix using the Tanimoto kernel.
+        If `X2` is None then the covariance between each point of `X` withitself is calcualted.
+        Else the covaraince between each point in `X` and each point in `X2` is returned.
+
+        Parameters
+        ----------
+        X : tf.Tensor
+            2D tensor containing features (columns) for each data point (rows)
             
-        if eval_gradient:
-            return K, np.zeros(shape=(len(X), len(X), 0))  # fixed params
-        else:
-            return K
+        X2 : Optional[tf.Tensor], optional
+            Second feature tensor but may be None.
 
-    @staticmethod
-    def _calc_sim(X: NDArray[NDArray[np.int_]], Y: NDArray[NDArray[np.int_]], n_jobs: int) -> NDArray[NDArray[np.float_]]:
-        
-        def _dist_wrapper(dist_func, dist_matrix, slice_, *args, **kwargs):
-            #Taken from `sklearn.metrics.pairwise` without modification.
-            dist_matrix[:, slice_] = dist_func(*args, **kwargs)
+        Returns
+        -------
+        tf.Tensor
+            covariance matrix `K`
+        """
+        X2 = X if X2 is None else X2
+        Xs = tf.reduce_sum(tf.square(X), axis=-1)  # Squared L2-norm of X
+        X2s = tf.reduce_sum(tf.square(X2), axis=-1)  # Squared L2-norm of X2
+        outer_product = tf.tensordot(X, X2, [[-1], [-1]])  # outer product of the matrices X and X2
+        denominator = -outer_product + ops.broadcasting_elementwise(tf.add, Xs, X2s)
 
-        def _tanimoto(Xa, Xb):
-            # Xa, Xb must be integer types!
-            c = np.einsum('ij,kj->ik', Xa, Xb)
-            a = Xa.sum(1).reshape(-1, 1)
-            b = Xb.sum(1)
-            return c / (a + b - c)
+        return self.variance * outer_product/denominator
 
-        X = X.astype(int) if X.dtype != np.int_ else X
-        Y = Y.astype(int) if Y.dtype != np.int_ else Y
+    def K_diag(self, X: tf.Tensor) -> tf.Tensor:
+        """The diagonal of the tanimoto kernel is just the variance.
+        Hence returns an array of length(X) where each value is the kernel variance.
 
-        fd = delayed(_dist_wrapper)
-        n_jobs = effective_n_jobs(n_jobs)
-        p = Parallel(backend="threading", n_jobs=n_jobs)
-        K = np.empty((X.shape[0], Y.shape[0]), dtype=float, order="F")
-        p(fd(_tanimoto, K, s, X, Y[s]) for s in gen_even_slices(len(Y), n_jobs))
-        return K
+        Parameters
+        ----------
+        X : tf.Tensor
 
-    def diag(self, X: NDArray):
-        return np.ones(len(X))  # tanimoto diagonal always 1
-
-    def is_stationary(self):
-        return True
-
-
-# -----------------------------------------------------------------------------------------------------------------------------
-
-
-class RbfKernelIdx(RBF):
-    """Identical to `sklearn.gaussian_process.kernels.RBF` but accepts indices rather than explicit features.
-    Explicit features are indexed from the database provided at init.
-    Allows for easier compatability with other MKL models.
-    """
-
-    def __init__(self, dataset:Union[Hdf5Dataset, NDArray], length_scale: NDArray[np.float_]):
-        self.dataset = dataset
-        super().__init__(length_scale=length_scale)
-
-    def __call__(self, X: NDArray[np.int_], Y: Optional[NDArray[np.int_]]=None, eval_gradient: bool=False):
-        Xa = self.dataset[np.ravel(X)]
-
-        if Y is None:
-            return super().__call__(Xa, Y, eval_gradient)
-        else:
-            Xb = self.dataset[np.ravel(Y)]
-            return super().__call__(Xa, Xb, eval_gradient)
-
-    def diag(self, X: NDArray):
-        Xa = self.dataset[np.ravel(X)]
-        return super().diag(Xa)
-
-
-# -----------------------------------------------------------------------------------------------------------------------------
-
-
-class WhiteKernelIdx(WhiteKernel):
-    """Identical to `sklearn.gaussian_process.kernels.WhiteKernel` but accepts indices rather than explicit features.
-    Explicit features are indexed from the database provided at init.
-    Allows for easier compatability with other MKL models.
-    """
-    
-    def __init__(self, dataset:Union[Hdf5Dataset, NDArray], noise_level: float=1.0):
-        self.dataset = dataset
-        super().__init__(noise_level=noise_level)
-        
-    def __call__(self, X, Y=None, eval_gradient=False):
-        Xa = self.dataset[np.ravel(X)]
-        
-        if Y is None:
-            return super().__call__(Xa, Y, eval_gradient)
-        else:
-            Xb = self.dataset[np.ravel(Y)]
-            return super().__call__(Xa, Xb, eval_gradient)
-    
-    def diag(self, X):
-        X = self.dataset[np.ravel(X)]
-        return super().diag(X)
-    
-    
-    # -----------------------------------------------------------------------------------------------------------------------------
+        Returns
+        -------
+        tf.Tensor
+        """
+        return tf.fill(len(X), self.variance)
