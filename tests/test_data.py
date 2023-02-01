@@ -50,7 +50,8 @@ def test_hdf5_with_dense_models(n, model, dataset):
     y = Hdf5Dataset(F'tests/data/{dataset}', 'y')[:].ravel()  # easier than loading from pandas
     
     inducing_indices = RAND.choice(len(X), size=50, replace=False)
-    model = model(X=X, X_M=inducing_indices)
+    M = X[inducing_indices]
+    model = model(X=X, M=M)
     
     train_indices = RAND.choice([i for i in range(len(X)) if i not in inducing_indices], size=n)
     y_train = y[train_indices]
@@ -68,7 +69,8 @@ def test_hdf5_with_dynamic_dense_model(n):
     y = Hdf5Dataset(F'tests/data/molecule.hdf5', 'y')[:].ravel()  # easier than loading from pandas
     
     inducing_indices = RAND.choice(len(X), size=50, replace=False)
-    model = DynamicDenseMKL(X=[X, X], X_M=[inducing_indices, inducing_indices])
+    M = X[inducing_indices]
+    model = DynamicDenseMKL(X=[X, X], M=[M, M])
     
     train_indices = RAND.choice([i for i in range(len(X)) if i not in inducing_indices], size=n)
     y_train = y[train_indices]

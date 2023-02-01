@@ -16,22 +16,22 @@ class DenseGpflowModel:
     Uses `gpflow` as a backend.
     """
     
-    def __init__(self, X: Union[NDArray, Hdf5Dataset], X_M: NDArray[np.int_]) -> None:
+    def __init__(self, X: Union[NDArray, Hdf5Dataset], M: NDArray[NDArray[np.float_]]) -> None:
         """
         Parameters
         ----------
         X : Union[NDArray, Hdf5Dataset]
             Either 2d numpy array  or HDF5 dataset arranged with rows as entries and columns as features.
             
-        X_M : NDArray[np.int_]
-            Indices of entries in `X` to use as inducing points for sparse process
+        M : NDArray[NDArray[np.float_]]
+            A 2d numpy array to use as inducing points for sparse process
 
         Returns
         -------
         None
         """
         self.X = X
-        self.M = self.X[X_M]
+        self.M = M
         
     @abstractmethod
     def build_model(self, X: NDArray[NDArray[np.float_]], y: NDArray[np.float_]) -> gpflow.models.GPR:
@@ -172,7 +172,7 @@ class DenseMultipleKernelLearner(DenseTanimotoModel):
     For a dense model with dynamic weight adjustment see `DynamicDenseMKL`.
     """
     
-    def __init__(self, X: List[Union[NDArray, Hdf5Dataset]], X_M: List[NDArray[np.int_]], weights: Optional[NDArray[np.float_]]=None) -> None:  # each can have their own inducing matrix!!
+    def __init__(self, X: List[Union[NDArray, Hdf5Dataset]], M: List[NDArray[NDArray[np.float_]]], weights: Optional[NDArray[np.float_]]=None) -> None:  # each can have their own inducing matrix!!
         """
         Parameters
         ----------
@@ -180,8 +180,8 @@ class DenseMultipleKernelLearner(DenseTanimotoModel):
             List of dataset objects / 2d numpy arrays, each kernel will have its own dataset object.
             Allows for different features to be used per kernel.
             
-        X_M : List[NDArray[np.int_]]
-            List of inducing points to be used per kernel.
+        M: List[NDArray[NDArray[np.float_]]]
+            List of inducing point arrays to be used per kernel.
             Allows for different kernels supporting different features to be used as feature landscape will differ in each case.
             
         weights : Optional[NDArray[np.float_]], optional
@@ -190,7 +190,7 @@ class DenseMultipleKernelLearner(DenseTanimotoModel):
             Total weights must sum to 1.0, passed weights will be normalised to facilitate this.
         """
         self.X = X 
-        self.M = [xi[xm] for xi, xm in zip(self.X, X_M)]
+        self.M = M
         self.n_kernels = len(self.X)
         self.models = []
         

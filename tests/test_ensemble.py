@@ -1,7 +1,6 @@
 import pytest
 import numpy as np
 from sklearn.cluster import KMeans
-from scipy.cluster.vq import vq
 
 from mkl.data import Hdf5Dataset
 from mkl.acquisition import GreedyNRanking
@@ -33,11 +32,10 @@ def test_ensemble_rbf_hdf5():
     # ----------------------------------------------------
     kms = KMeans(n_clusters=300, max_iter=5)
     kms.fit(X[:])
-    X_cls = kms.cluster_centers_
-    cls_ind, _ = vq(X_cls, X[:])  # need to use in data locations
+    M = kms.cluster_centers_
 
     # ----------------------------------------------------
-    dense_rbf_model = DenseRBFModel(X=X, X_M=cls_ind)
+    dense_rbf_model = DenseRBFModel(X=X, M=M)
     sparse_rbf_model = SparseGaussianProcess(dense_model=dense_rbf_model)
     model = EnsembleSparseGaussianProcess(sparse_rbf_model, sparse_rbf_model, n_top=10, n_max=40)
     acqu = GreedyNRanking()

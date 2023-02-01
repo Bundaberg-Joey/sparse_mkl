@@ -39,13 +39,12 @@ def test_sparse_gp_screening_rbf():
     # ----------------------------------------------------
     kms = KMeans(n_clusters=300, max_iter=5)
     kms.fit(X)
-    X_cls = kms.cluster_centers_
-    cls_ind, _ = vq(X_cls, X)  # need to use in data locations
+    M = kms.cluster_centers_
 
     # ----------------------------------------------------
 
 
-    dense_model = DenseRBFModel(X=X, X_M=cls_ind)
+    dense_model = DenseRBFModel(X=X, M=M)
     model = SparseGaussianProcess(dense_model=dense_model)
     acqu = GreedyNRanking()
 
@@ -90,11 +89,10 @@ def test_sparse_gp_screening_tanimoto():
     # ----------------------------------------------------
     kms = KMeans(n_clusters=20, max_iter=5)
     kms.fit(X)
-    X_cls = kms.cluster_centers_
-    cls_ind, _ = vq(X_cls, X)  # need to use in data locations
+    M = kms.cluster_centers_
 
     # ----------------------------------------------------
-    dense_model = DenseTanimotoModel(X=X, X_M=cls_ind)
+    dense_model = DenseTanimotoModel(X=X, M=M)
     model = SparseGaussianProcess(dense_model=dense_model)
     acqu = GreedyNRanking()
 
@@ -145,11 +143,10 @@ def test_sparse_gp_screening_dense_mkl_models_double_same_kernel(model):
     # ----------------------------------------------------
     kms = KMeans(n_clusters=20, max_iter=5)
     kms.fit(X)
-    X_cls = kms.cluster_centers_
-    cls_ind, _ = vq(X_cls, X)  # need to use in data locations
+    M = kms.cluster_centers_
 
     # ----------------------------------------------------
-    dense_model = model(X=[X, X], X_M=[cls_ind, cls_ind])
+    dense_model = model(X=[X, X], M=[M, M])
     model = SparseGaussianProcess(dense_model=dense_model)
     acqu = GreedyNRanking()
 
@@ -195,13 +192,12 @@ def test_sparse_gp_screening_hdf5():
     # ----------------------------------------------------
     kms = KMeans(n_clusters=300, max_iter=5)
     kms.fit(X[:])
-    X_cls = kms.cluster_centers_
-    cls_ind, _ = vq(X_cls, X[:])  # need to use in data locations
+    M = kms.cluster_centers_
 
     # ----------------------------------------------------
 
 
-    dense_model = DenseRBFModel(X=X, X_M=cls_ind)
+    dense_model = DenseRBFModel(X=X, M=M)
     model = SparseGaussianProcess(dense_model=dense_model)
     acqu = GreedyNRanking()
 
@@ -246,11 +242,10 @@ def test_sparse_gp_screening_tanimoto_hdf5():
     # ----------------------------------------------------
     kms = KMeans(n_clusters=20, max_iter=5)
     kms.fit(X[:])
-    X_cls = kms.cluster_centers_
-    cls_ind, _ = vq(X_cls, X[:])  # need to use in data locations
+    M = kms.cluster_centers_
 
     # ----------------------------------------------------
-    dense_model = DenseTanimotoModel(X=X, X_M=cls_ind)
+    dense_model = DenseTanimotoModel(X=X, M=M)
     model = SparseGaussianProcess(dense_model=dense_model)
     acqu = GreedyNRanking()
 
