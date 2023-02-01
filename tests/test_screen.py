@@ -16,6 +16,8 @@ from mkl.data import Hdf5Dataset
 
 
 RAND = np.random.RandomState(1)
+RBF_TOP = 25
+TAN_TOP = 17
 
 
 # -----------------------------------------------------------------------------------------------------------------------------
@@ -67,8 +69,10 @@ def test_sparse_gp_screening_rbf():
         
         print(F'[{itr} / 100] : {n_top_found}/{n_top} found : y_max_tested={max(y):.3f} : y_sampled={y[to_sample]}')
         
+        if n_top_found == RBF_TOP:
+            break
         
-    assert n_top_found >= 25
+    assert n_top_found >= RBF_TOP
     
 
 # -----------------------------------------------------------------------------------------------------------------------------
@@ -115,8 +119,10 @@ def test_sparse_gp_screening_tanimoto():
         
         print(F'[{itr} / 50] : {n_top_found}/{n_top} found : y_max_tested={max(y):.3f} : y_sampled={y[to_sample]}')
         
+        if n_top_found == TAN_TOP:
+            break
         
-    assert n_top_found >= 17  # average with random guessing is 6.5
+    assert n_top_found >= TAN_TOP  # average with random guessing is 6.5
    
    
 # -----------------------------------------------------------------------------------------------------------------------------
@@ -169,8 +175,10 @@ def test_sparse_gp_screening_dense_mkl_models_double_same_kernel(model):
         
         print(F'[{itr} / 50] : {n_top_found}/{n_top} found : y_max_tested={max(y):.3f} : y_sampled={y[to_sample]}')
         
+        if n_top_found == TAN_TOP:
+            break
         
-    assert n_top_found >= 17  # average with random guessing is 6.5
+    assert n_top_found >= TAN_TOP  # average with random guessing is 6.5
     
 
 # -----------------------------------------------------------------------------------------------------------------------------
@@ -220,8 +228,10 @@ def test_sparse_gp_screening_hdf5():
         
         print(F'[{itr} / 100] : {n_top_found}/{n_top} found : y_max_tested={max(y):.3f} : y_sampled={y[to_sample]}')
         
+        if n_top_found == RBF_TOP:
+            break
         
-    assert n_top_found >= 25
+    assert n_top_found >= RBF_TOP  # average with random guessing is 6.5
 
 
 # -----------------------------------------------------------------------------------------------------------------------------
@@ -268,8 +278,10 @@ def test_sparse_gp_screening_tanimoto_hdf5():
         
         print(F'[{itr} / 50] : {n_top_found}/{n_top} found : y_max_tested={max(y):.3f} : y_sampled={y[to_sample]}')
         
+        if n_top_found == TAN_TOP:
+            break
         
-    assert n_top_found >= 17  # average with random guessing is 6.5
+    assert n_top_found >= TAN_TOP  # average with random guessing is 6.5
    
 
 # -----------------------------------------------------------------------------------------------------------------------------
