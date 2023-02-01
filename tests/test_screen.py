@@ -22,7 +22,7 @@ RAND = np.random.RandomState(1)
 
 @pytest.mark.slow
 def test_sparse_gp_screening_rbf():
-    df = pd.read_csv('tests/COF_pct_deliverablecapacityvSTPv.csv')
+    df = pd.read_csv('tests/data/COF_pct_deliverablecapacityvSTPv.csv')
     subsample = RAND.choice(len(df), size=1000, replace=False)
     X, y = df.iloc[subsample, :5].values, df.iloc[subsample, -1].values
     X = scale(X)
@@ -76,7 +76,7 @@ def test_sparse_gp_screening_rbf():
 
 @pytest.mark.slow
 def test_sparse_gp_screening_tanimoto():
-    df = pd.read_csv('tests/molecule.csv')
+    df = pd.read_csv('tests/data/molecule.csv')
     X, y = df.iloc[:, :2048].values, df.iloc[:, -1].values
 
     n_top = 50
@@ -131,7 +131,7 @@ def test_sparse_gp_screening_tanimoto():
                          ])
 def test_sparse_gp_screening_dense_mkl_models_double_same_kernel(model):
     # just double up the same kernel used for the singular tanimoto approach (test is the same but need to pass different datasets at init)
-    df = pd.read_csv('tests/molecule.csv')
+    df = pd.read_csv('tests/data/molecule.csv')
     X, y = df.iloc[:, :2048].values, df.iloc[:, -1].values
 
     n_top = 50

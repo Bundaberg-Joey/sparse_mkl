@@ -53,7 +53,7 @@ def test_Hdf5Dataset(indices):
     m = 5
     ref = np.arange(100).reshape(20, m)
     
-    dataset = Hdf5Dataset('tests/test.hdf5')
+    dataset = Hdf5Dataset('tests/data/test.hdf5')
     out = dataset[indices]
     
     assert out.ndim == 2
