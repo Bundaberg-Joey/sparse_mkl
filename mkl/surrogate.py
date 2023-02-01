@@ -73,7 +73,7 @@ class SparseSeparationSurrogate(SurrogateModel):
     the data points as the logorathm will be used instead of absolute values.
     """
     
-    def __init__(self, model: EnsembleSparseGaussianProcess, acquisitor=GreedyNRanking, n_post: int=50) -> None:
+    def __init__(self, model: EnsembleSparseGaussianProcess, acquisitor: GreedyNRanking, n_post: int=50) -> None:
         super().__init__(model, acquisitor)
         self.n_post = int(n_post)
             
