@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import numpy as np
 from numpy.typing import NDArray
 import h5py
@@ -18,6 +20,13 @@ class Hdf5Dataset:
         
     def __repr__(self) -> str:
         return F'KernelDataset(hdf5_loc="{self.hdf5_loc}", data_key="{self.data_key}")'
+    
+    @property
+    def shape(self) -> Tuple[int, int]:
+        return self[:].shape
+    
+    def __len__(self) -> int:
+        return self.shape[0]
         
     def __getitem__(self, k: NDArray[np.int_]) -> NDArray[NDArray]:
         """return features from hdf5 dataset for passed indices.
@@ -34,19 +43,17 @@ class Hdf5Dataset:
         """
         k = np.asarray(k).ravel()
         
-        # dual argsorts as need to pass indices to hdf5 in increasing order
-        # but need to return w.r.t passed indices
-        ka = np.argsort(k)
-        kaa = np.argsort(ka)
-        
         with h5py.File(self.hdf5_loc, 'r') as f:
             X_ = f[self.data_key]
-            X = X_[k[ka]][kaa]
+            
+            if isinstance(k[0], slice):  # first index since convert to array above
+                X = X_[:]  # return entire dataset
+            else:
+                X = np.vstack([X_[idx] for idx in k])  # avoids worries of out of order indexing / duplicate indices being passed
             
         if X.ndim == 1:
             X = X.reshape(1, -1)  # ensure always 2d output for simplicity
             
-        return X
-    
+        return X    
 
 # -----------------------------------------------------------------------------------------------------------------------------
