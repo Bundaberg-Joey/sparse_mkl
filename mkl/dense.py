@@ -112,7 +112,7 @@ class DenseGpflowModel:
         -------
         NDArray[NDArray[np.float_]]
         """
-        return self.model.kernel.K(self.X, self.M).numpy()
+        return self.model.kernel.K(self.X[:], self.M[:]).numpy()
     
     def calc_k_mm(self) -> NDArray[NDArray[np.float_]]:
         """Calculates the covariance matrix between each entry in the inducing matrix against itself.
@@ -122,7 +122,7 @@ class DenseGpflowModel:
         -------
         NDArray[NDArray[np.float_]]
         """
-        return self.model.kernel.K(self.M, self.M).numpy()
+        return self.model.kernel.K(self.M[:], self.M[:]).numpy()
     
 
 # ------------------------------------------------------------------------------------------------------------------------------------
@@ -217,7 +217,7 @@ class DenseMultipleKernelLearner(DenseTanimotoModel):
         self.models = []
                 
         for i in range(self.n_kernels):
-            self.M[i] = np.vstack((self.X[i][X_ind], self.M[i]))  # update each inducing matrix with training indices
+            self.M[i] = np.vstack((self.X[i][X_ind], self.M[i][:]))  # update each inducing matrix with training indices
             
             x_ = self.X[i][X_ind]
             y_ = np.reshape(y_val, (-1, 1))
@@ -299,7 +299,7 @@ class DenseMultipleKernelLearner(DenseTanimotoModel):
         k = []
         
         for i in range(self.n_kernels):
-            k_ = self.models[i].kernel.K(A[i], B[i]).numpy()
+            k_ = self.models[i].kernel.K(A[i][:], B[i][:]).numpy()
             k.append(k_ * self.weights[i])
             
         return sum(k)
