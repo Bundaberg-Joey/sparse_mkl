@@ -163,6 +163,7 @@ class EnsembleSparseGaussianProcess:
         None
         """
         # same update logic as single sparse model but allows for ensemble to keep track / apply methods independently
+        X_ind = np.asarray(X_ind, dtype=int)
         
         if self._update_counter % self.param_update_freq == 0:
             
@@ -174,14 +175,14 @@ class EnsembleSparseGaussianProcess:
             else:
                 # subsample if above certain number of points to keep "fitting" fast
                 top_ind = np.argsort(y_val)[-self.n_top:]  # indices of top y sampled so far
-                rand_ind = np.random.choice([i for i in range(n_tested) if i not in top_ind], replace=False, size=n_tested-self.n_top)  # other indices
-                chosen = np.hstack((top_ind, rand_ind))
+                rand_ind = np.random.choice([i for i in range(n_tested) if i not in top_ind], replace=False, size=self.n_max-self.n_top)  # other indices
+                chosen = np.hstack((top_ind, rand_ind)).astype(int)
+                
                 y_val = y_val[chosen]
                 X_ind = X_ind[chosen]
 
-    
-            self.sparse_rbf.update_params(X_ind, y_val)
-            self.sparse_mkl.update_params(X_ind, y_val)
+            self.sparse_rbf.update_parameters(X_ind, y_val)
+            self.sparse_mkl.update_parameters(X_ind, y_val)
         
         self.sparse_rbf.update_data(X_ind, y_val)
         self.sparse_mkl.update_data(X_ind, y_val)
