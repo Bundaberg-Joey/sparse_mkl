@@ -9,4 +9,8 @@ dependencies:
   - scikit-learn
   - pytest
   - raspa2
+  - pandas
+  - pip
+  - pip:
+    - gpflow
 
