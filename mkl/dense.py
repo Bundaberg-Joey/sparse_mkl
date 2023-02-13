@@ -95,7 +95,7 @@ class DenseGpflowModel:
         """
         return self.model.kernel.variance.numpy()
     
-    def get_gaussian_var(self) -> np.float:
+    def get_gaussian_var(self) -> np.float_:
         """Get the variance of the gaussian noise as determined by gpflow model.
 
         Returns
@@ -247,7 +247,7 @@ class DenseMultipleKernelLearner(DenseTanimotoModel):
         """
         return sum([w * m.kernel.variance.numpy() for w, m in zip(self.weights, self.models)])
     
-    def get_gaussian_var(self) -> np.float:
+    def get_gaussian_var(self) -> np.float_:
         """Get the variance of the gaussian noise as determined by gpflow model.
         Returned as the weighted sum from each model.
         
