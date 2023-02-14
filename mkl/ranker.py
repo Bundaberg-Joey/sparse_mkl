@@ -51,10 +51,10 @@ class GreedySparseSeparationRanker(ami.abc.RankerInterface):
         NDArray[np.float_]
             ranked highest to lowest, element 0 is largest ranked, element -1 is lowest ranked.
         """
-        alpha = self.determine_alpha(x)
-        return alpha  # index of largest alpha is first
+        alpha_argsort = self.determine_alpha(x)
+        return alpha_argsort  # index of largest alpha is first
                 
-    def determine_alpha(self, X_ind: NDArray[np.int_]) -> NDArray[np.float_]:
+    def determine_alpha(self, X_ind: NDArray[np.int_]) -> NDArray[np.int_]:
         """Determine the alpha (ranking values) for each data point in `X_ind`.
         Performs 50 posterior samples for each instance in self.model and determines the absolute values.
 
@@ -66,11 +66,12 @@ class GreedySparseSeparationRanker(ami.abc.RankerInterface):
 
         Returns
         -------
-        NDArray[np.float_]
+        NDArray[np.int_]
             ranked alpha terms for the specified indices ranked highest t lowest where highest is most recommended.
         """
-        posterior = abs(self.model.sample_y(n_samples=self.n_post))[X_ind]
+        posterior = abs(self.model.sample_y(n_samples=self.n_post))
         alpha = self.acquisitor.score_points(posterior)
+        alpha = alpha[X_ind]
         alpha = np.argsort(alpha)[::-1]
         return alpha
     
