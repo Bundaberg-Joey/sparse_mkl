@@ -5,7 +5,7 @@ import numpy as np
 from numpy.typing import NDArray
 import gpflow
 
-from mkl.kernel import TanimotoKernel
+from mkl.kernel import TanimotoKernel, SafeMatern12, SafeMatern32, SafeMatern52
 from mkl.data import Hdf5Dataset
 
 
@@ -142,7 +142,54 @@ class DenseRBFModel(DenseGpflowModel):
         )
         return model
         
-            
+          
+          
+class DenseMatern12Model(DenseGpflowModel):
+    """Dense gpflow model which uses a constant mean function and a Matern12 kernel with added numerical stability.
+    Overloads `build_model` to achieve this.
+    """
+    
+    def build_model(self, X: NDArray[NDArray[np.float_]], y: NDArray[np.float_]) -> gpflow.models.GPR:
+        # see docstring in `DenseGpflowModel`
+        model = gpflow.models.GPR(
+        data=(X, y), 
+        kernel=SafeMatern12(lengthscales=np.ones(X.shape[1])),
+        mean_function=gpflow.mean_functions.Constant()
+        )
+        return model
+  
+  
+class DenseMatern32Model(DenseGpflowModel):
+    """Dense gpflow model which uses a constant mean function and a Matern32 kernel with added numerical stability.
+    Overloads `build_model` to achieve this.
+    """
+    
+    def build_model(self, X: NDArray[NDArray[np.float_]], y: NDArray[np.float_]) -> gpflow.models.GPR:
+        # see docstring in `DenseGpflowModel`
+        model = gpflow.models.GPR(
+        data=(X, y), 
+        kernel=SafeMatern32(lengthscales=np.ones(X.shape[1])),
+        mean_function=gpflow.mean_functions.Constant()
+        )
+        return model
+    
+    
+    
+class DenseMatern52Model(DenseGpflowModel):
+    """Dense gpflow model which uses a constant mean function and a Matern52 kernel with added numerical stability.
+    Overloads `build_model` to achieve this.
+    """
+    
+    def build_model(self, X: NDArray[NDArray[np.float_]], y: NDArray[np.float_]) -> gpflow.models.GPR:
+        # see docstring in `DenseGpflowModel`
+        model = gpflow.models.GPR(
+        data=(X, y), 
+        kernel=SafeMatern52(lengthscales=np.ones(X.shape[1])),
+        mean_function=gpflow.mean_functions.Constant()
+        )
+        return model
+    
+
 # ------------------------------------------------------------------------------------------------------------------------------------
     
         
@@ -353,6 +400,12 @@ class DynamicDenseMKL(DenseMultipleKernelLearner):
         # re-weight kernels using "kernel allignment method"
         y_val = y_val.reshape(-1, 1)
         yc = ((y_val - y_val.mean()) / y_val.std())
+        
+        #if y_val.std() < 1e-10:
+        #    yc = np.random.normal(size=(len(y_val),1))
+        #else:
+        #    yc = ((y_val - y_val.mean()) / y_val.std())
+            
         Kyy = np.dot(yc, yc.T)
         bb = self.calc_frobenius_product(Kyy, Kyy)
         
