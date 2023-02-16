@@ -24,9 +24,16 @@ class TanimotoKernel(gpflow.kernels.Kernel):
         doi = "10.26434/chemrxiv.12609899.v1"
         }
     """
-    def __init__(self):
+    def __init__(self, variance: float=1.0):
+        """
+        Parameters
+        ----------
+        variance : float
+            Initial value to set for the kernel variance.
+            defaults to 1.0 as per literature implementation.
+        """
         super().__init__()
-        self.variance = gpflow.Parameter(1.0, transform=positive())
+        self.variance = gpflow.Parameter(float(variance), transform=positive())
 
     def K(self, X: tf.Tensor, X2: Optional[tf.Tensor]=None) -> tf.Tensor:
         """Calculates the covaraince matrix using the Tanimoto kernel.
