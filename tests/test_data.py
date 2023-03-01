@@ -2,8 +2,7 @@ import pytest
 import numpy as np
 
 from mkl.data import Hdf5Dataset
-from mkl.dense import DenseRBFModel, DenseTanimotoModel, DynamicDenseMKL
-
+from mkl.dense import DenseGaussianProcessregressor
 
 # -----------------------------------------------------------------------------------------------------------------------------
 
@@ -37,48 +36,23 @@ def test_Hdf5Dataset(indices):
     
 # -----------------------------------------------------------------------------------------------------------------------------
 
-@pytest.mark.slow
-@pytest.mark.parametrize("n, model, dataset", 
-[
-                             (1, DenseRBFModel, 'COF_p.hdf5'),
-                             (10, DenseRBFModel ,'COF_p.hdf5'),
-                             (1, DenseTanimotoModel, 'molecule.hdf5'),
-                             (10, DenseTanimotoModel ,'molecule.hdf5'),
-])
-def test_hdf5_with_dense_models(n, model, dataset):
-    X = Hdf5Dataset(F'tests/data/{dataset}', 'X')
-    y = Hdf5Dataset(F'tests/data/{dataset}', 'y')[:].ravel()  # easier than loading from pandas
+@pytest.mark.parametrize("n", [1, 10]) 
+def test_hdf5_with_dense_models(n):
+    X = Hdf5Dataset(F'tests/data/COF_p.hdf5', 'X')
+    y = Hdf5Dataset(F'tests/data/COF_p.hdf5', 'y')[:].ravel()  # easier than loading from pandas
     
-    inducing_indices = RAND.choice(len(X), size=50, replace=False)
-    M = X[inducing_indices]
-    model = model(X=X, M=M)
+    model = DenseGaussianProcessregressor(data_set=X)
     
-    train_indices = RAND.choice([i for i in range(len(X)) if i not in inducing_indices], size=n)
+    train_indices = RAND.choice(len(X), size=n)
     y_train = y[train_indices]
     
     model.fit(train_indices, y_train)
-    _ = model.calc_k_xm()
-    _  = model.calc_k_mm()
+    
+    for i in range(1, 4):
+        post = model.sample_y(n_samples=i)
+        assert post.shape == (len(X), i)
+    
     # just check they work, dont really care about the output
     
-
-@pytest.mark.slow
-@pytest.mark.parametrize("n", [1, 10])
-def test_hdf5_with_dynamic_dense_model(n):
-    X = Hdf5Dataset(F'tests/data/molecule.hdf5', 'X')
-    y = Hdf5Dataset(F'tests/data/molecule.hdf5', 'y')[:].ravel()  # easier than loading from pandas
-    
-    inducing_indices = RAND.choice(len(X), size=50, replace=False)
-    M = X[inducing_indices]
-    model = DynamicDenseMKL(X=[X, X], M=[M, M])
-    
-    train_indices = RAND.choice([i for i in range(len(X)) if i not in inducing_indices], size=n)
-    y_train = y[train_indices]
-    
-    model.fit(train_indices, y_train)
-    _ = model.calc_k_xm()
-    _  = model.calc_k_mm()
-    # just check they work, dont really care about the output
-
 
 # -----------------------------------------------------------------------------------------------------------------------------

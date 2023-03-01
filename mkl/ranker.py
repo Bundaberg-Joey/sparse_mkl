@@ -8,12 +8,12 @@ from ami.abc import SchemaInterface, Feature, Target
 from ami.abc.ranker import Index
 from ami.schema import Schema
 
-from mkl.sparse import EnsembleSparseGaussianProcess
+from mkl.dense import DenseGaussianProcessregressor
 from mkl.acquisition import GreedyNRanking
 
 
-class GreedySparseSeparationRanker(ami.abc.RankerInterface):
-    def __init__(self, model: EnsembleSparseGaussianProcess, acquisitor: GreedyNRanking, n_post: int=50) -> None:
+class GreedySeparationRanker(ami.abc.RankerInterface):
+    def __init__(self, model: DenseGaussianProcessregressor, acquisitor: GreedyNRanking, n_post: int=50) -> None:
         """
         Parameters
         ----------
