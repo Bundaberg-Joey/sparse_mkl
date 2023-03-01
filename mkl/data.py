@@ -1,8 +1,40 @@
 from typing import Tuple
 
 import numpy as np
+import pandas as pd
 from numpy.typing import NDArray
 import h5py
+
+
+# -----------------------------------------------------------------------------------------------------------------------------
+
+
+class DataManager:
+    
+    def __init__(self, n):
+        self.n = abs(int(n))
+        self._data = [[] for _ in range(self.n)]
+        
+    def add_entry(self, k: int, xy: Tuple):
+        xy_result = (int(xy[0]), float(xy[1]))
+        self._data[k].append(xy_result)
+        
+    def get_X_y(self, k: int):
+        xy = self._data[k]
+        X = np.array([i[0] for i in xy], dtype=int).reshape(-1, 1)
+        y = np.array([i[1] for i in xy], dtype=float)
+        return X, y
+        
+    def get_all_sampled(self):
+        sampled_indices = []
+        for k in self._data:
+            for entry in k:
+                sampled_indices.append(entry[0])
+        return sampled_indices
+    
+    def write_to_file(self, k):
+        df = pd.DataFrame(data=self._data[k], columns=['mof_idx', 'performance'])
+        df.to_csv(F'ami_output_process_{k}.csv', index=False)                             
 
 
 # -----------------------------------------------------------------------------------------------------------------------------
